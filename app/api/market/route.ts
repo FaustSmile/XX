@@ -1,11 +1,42 @@
-import { NextResponse } from 'next/server'
-export async function GET() {
-  return NextResponse.json([
-    { label: 'SPY', value: '638.42', chg: '+0.42%', status: 'up', source: 'Demo API' },
-    { label: 'QQQ', value: '571.20', chg: '+0.68%', status: 'up', source: 'Demo API' },
-    { label: 'VIX', value: '14.8', chg: '-3.1%', status: 'down', source: 'Demo API' },
-    { label: 'DXY', value: '98.7', chg: '-0.18%', status: 'down', source: 'Demo API' },
-    { label: '10Y', value: '4.12%', chg: '-0.05', status: 'down', source: 'Demo API' },
-    { label: 'BTC', value: '102,480', chg: '+1.9%', status: 'up', source: 'Demo API' }
-  ])
+```ts
+import { NextResponse } from "next/server";
+
+const API_KEY = process.env.FINNHUB_API_KEY;
+
+async function getQuote(symbol: string) {
+  const res = await fetch(
+    `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${API_KEY}`,
+    {
+      cache: "no-store",
+    }
+  );
+
+  const data = await res.json();
+
+  const current = data.c;
+  const previous = data.pc;
+
+  const changePercent =
+    previous > 0
+      ? ((current - previous) / previous) * 100
+      : 0;
+
+  return {
+    label: symbol,
+    value: current?.toFixed(2),
+    chg: `${changePercent >= 0 ? "+" : ""}${changePercent.toFixed(2)}%`,
+    status: changePercent >= 0 ? "up" : "down",
+    source: "Finnhub",
+  };
 }
+
+export async function GET() {
+  const symbols = ["SPY", "QQQ", "AAPL", "MSFT", "NVDA", "TSLA"];
+
+  const results = await Promise.all(
+    symbols.map((symbol) => getQuote(symbol))
+  );
+
+  return NextResponse.json(results);
+}
+```
