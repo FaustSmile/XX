@@ -2,20 +2,38 @@ import { NextResponse } from "next/server";
 
 const FRED_API_KEY = process.env.FRED_API_KEY;
 
-async function getFredSeries(seriesId: string) {
+type FredObservation = {
+  date: string;
+  value: string;
+};
+
+async function getFredSeries(seriesId: string): Promise<FredObservation[]> {
   const url =
     "https://api.stlouisfed.org/fred/series/observations?series_id=" +
     encodeURIComponent(seriesId) +
     "&api_key=" +
     FRED_API_KEY +
-    "&file_type=json&sort_order=desc&limit=24";
+    "&file_type=json&sort_order=desc&limit=60";
 
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, {
+    cache: "no-store",
+  });
+
   const data = await res.json();
 
-  return (data.observations || []).filter(
-    (x: any) => x.value !== "." && x.value !== null
-  );
+  const observations = data.observations || [];
+
+  return observations.filter((x: FredObservation) => {
+    const value = Number(x.value);
+
+    return (
+      x.value !== "." &&
+      x.value !== null &&
+      x.value !== undefined &&
+      !Number.isNaN(value) &&
+      Number.isFinite(value)
+    );
+  });
 }
 
 function pctYoY(latest: number, yearAgo: number) {
@@ -23,7 +41,13 @@ function pctYoY(latest: number, yearAgo: number) {
 }
 
 function safePercent(value: number) {
-  return isFinite(value) ? value.toFixed(2) + "%" : "等待資料";
+  return Number.isFinite(value) ? value.toFixed(2) + "%" : "等待資料";
+}
+
+function safeNumber(value: string | undefined) {
+  const num = Number(value);
+
+  return Number.isFinite(num) ? num : NaN;
 }
 
 export async function GET() {
@@ -42,57 +66,85 @@ export async function GET() {
   }
 
   try {
-    const cpi = await getFredSeries("CPIAUCSL");
-    const pce = await getFredSeries("PCEPI");
-    const nfp = await getFredSeries("PAYEMS");
-    const fedFunds = await getFredSeries("FEDFUNDS");
+    const [cpi, pce, nfp, fedFunds] = await Promise.all([
+      getFredSeries("CPIAUCSL"),
+      getFredSeries("PCEPI"),
+      getFredSeries("PAYEMS"),
+      getFredSeries("FEDFUNDS"),
+    ]);
 
-    const cpiActual = pctYoY(Number(cpi[0]?.value), Number(cpi[12]?.value));
-    const cpiPrevious = pctYoY(Number(cpi[1]?.value), Number(cpi[13]?.value));
+    const cpiLatest = safeNumber(cpi[0]?.value);
+    const cpiYearAgo = safeNumber(cpi[12]?.value);
+    const cpiPrevious = safeNumber(cpi[1]?.value);
+    const cpiPreviousYearAgo = safeNumber(cpi[13]?.value);
 
-    const pceActual = pctYoY(Number(pce[0]?.value), Number(pce[12]?.value));
-    const pcePrevious = pctYoY(Number(pce[1]?.value), Number(pce[13]?.value));
+    const pceLatest = safeNumber(pce[0]?.value);
+    const pceYearAgo = safeNumber(pce[12]?.value);
+    const pcePrevious = safeNumber(pce[1]?.value);
+    const pcePreviousYearAgo = safeNumber(pce[13]?.value);
 
-    const nfpLatest = Number(nfp[0]?.value);
-    const nfpPrevious = Number(nfp[1]?.value);
+    const nfpLatest = safeNumber(nfp[0]?.value);
+    const nfpPrevious = safeNumber(nfp[1]?.value);
     const nfpChange = nfpLatest - nfpPrevious;
 
-    const fedLatest = Number(fedFunds[0]?.value);
-    const fedPrevious = Number(fedFunds[1]?.value);
+    const fedLatest = safeNumber(fedFunds[0]?.value);
+    const fedPrevious = safeNumber(fedFunds[1]?.value);
 
     return NextResponse.json([
       {
         name: "CPI",
-        actual: safePercent(cpiActual),
+        actual:
+          Number.isFinite(cpiLatest) && Number.isFinite(cpiYearAgo)
+            ? safePercent(pctYoY(cpiLatest, cpiYearAgo))
+            : "等待資料",
         forecast: "—",
-        previous: safePercent(cpiPrevious),
+        previous:
+          Number.isFinite(cpiPrevious) &&
+          Number.isFinite(cpiPreviousYearAgo)
+            ? safePercent(pctYoY(cpiPrevious, cpiPreviousYearAgo))
+            : "—",
         time: "最新月份：" + (cpi[0]?.date || "—"),
         impact: "高",
         updated: true,
       },
       {
         name: "PCE",
-        actual: safePercent(pceActual),
+        actual:
+          Number.isFinite(pceLatest) && Number.isFinite(pceYearAgo)
+            ? safePercent(pctYoY(pceLatest, pceYearAgo))
+            : "等待資料",
         forecast: "—",
-        previous: safePercent(pcePrevious),
+        previous:
+          Number.isFinite(pcePrevious) &&
+          Number.isFinite(pcePreviousYearAgo)
+            ? safePercent(pctYoY(pcePrevious, pcePreviousYearAgo))
+            : "—",
         time: "最新月份：" + (pce[0]?.date || "—"),
         impact: "高",
         updated: true,
       },
       {
         name: "非農 NFP",
-        actual: isFinite(nfpChange) ? nfpChange.toFixed(0) + "K" : "等待資料",
+        actual: Number.isFinite(nfpChange)
+          ? nfpChange.toFixed(0) + "K"
+          : "等待資料",
         forecast: "—",
-        previous: isFinite(nfpPrevious) ? "上月總量：" + nfpPrevious.toFixed(0) + "K" : "—",
+        previous: Number.isFinite(nfpPrevious)
+          ? "上月總量：" + nfpPrevious.toFixed(0) + "K"
+          : "—",
         time: "最新月份：" + (nfp[0]?.date || "—"),
         impact: "高",
         updated: true,
       },
       {
         name: "FOMC / 利率",
-        actual: isFinite(fedLatest) ? fedLatest.toFixed(2) + "%" : "等待資料",
+        actual: Number.isFinite(fedLatest)
+          ? fedLatest.toFixed(2) + "%"
+          : "等待資料",
         forecast: "—",
-        previous: isFinite(fedPrevious) ? fedPrevious.toFixed(2) + "%" : "—",
+        previous: Number.isFinite(fedPrevious)
+          ? fedPrevious.toFixed(2) + "%"
+          : "—",
         time: "最新月份：" + (fedFunds[0]?.date || "—"),
         impact: "極高",
         updated: true,
