@@ -1,136 +1,108 @@
 import { NextResponse } from "next/server";
 
-const API_KEY = process.env.FINNHUB_API_KEY;
+const FRED_API_KEY = process.env.FRED_API_KEY;
 
-type MacroItem = {
-  name: string;
-  actual: string;
-  forecast: string;
-  previous: string;
-  time: string;
-  impact: string;
-  updated: boolean;
-};
+async function getFredSeries(seriesId: string) {
+  const url =
+    "https://api.stlouisfed.org/fred/series/observations?series_id=" +
+    seriesId +
+    "&api_key=" +
+    FRED_API_KEY +
+    "&file_type=json&sort_order=desc&limit=24";
 
-function formatValue(value: any) {
-  if (value === null || value === undefined || value === "") return "—";
-  return String(value);
+  const res = await fetch(url, { cache: "no-store" });
+  const data = await res.json();
+
+  return (data.observations || []).filter((x: any) => x.value !== ".");
 }
 
-function findEvent(events: any[], keywords: string[]) {
-  return events.find((event) => {
-    const name = String(event.event || event.name || "").toLowerCase();
-    return keywords.some((k) => name.includes(k.toLowerCase()));
-  });
-}
-
-function buildItem(
-  displayName: string,
-  pastEvents: any[],
-  futureEvents: any[],
-  keywords: string[],
-  impact: string
-): MacroItem {
-  const latest = findEvent(pastEvents, keywords);
-  const next = findEvent(futureEvents, keywords);
-
-  return {
-    name: displayName,
-    actual: latest ? formatValue(latest.actual) : "等待資料",
-    forecast: latest ? formatValue(latest.estimate) : "—",
-    previous: latest ? formatValue(latest.prev) : "—",
-    time: next
-      ? "下次公布：" + (next.date || next.time || "依經濟日曆")
-      : "下次公布：依經濟日曆",
-    impact,
-    updated: Boolean(latest?.actual),
-  };
+function pctYoY(latest: number, yearAgo: number) {
+  return ((latest - yearAgo) / yearAgo) * 100;
 }
 
 export async function GET() {
-  if (!API_KEY) {
+  if (!FRED_API_KEY) {
     return NextResponse.json([
       {
         name: "CPI",
-        actual: "尚未設定 API Key",
+        actual: "尚未設定 FRED_API_KEY",
         forecast: "—",
         previous: "—",
-        time: "請先設定 FINNHUB_API_KEY",
+        time: "請到 Vercel 設定環境變數",
         impact: "高",
         updated: false,
       },
     ]);
   }
 
-  const today = new Date();
-
-  const past = new Date(today);
-  past.setDate(today.getDate() - 120);
-
-  const future = new Date(today);
-  future.setDate(today.getDate() + 120);
-
-  const pastStr = past.toISOString().slice(0, 10);
-  const todayStr = today.toISOString().slice(0, 10);
-  const futureStr = future.toISOString().slice(0, 10);
-
-  const pastUrl =
-    "https://finnhub.io/api/v1/calendar/economic?from=" +
-    pastStr +
-    "&to=" +
-    todayStr +
-    "&token=" +
-    API_KEY;
-
-  const futureUrl =
-    "https://finnhub.io/api/v1/calendar/economic?from=" +
-    todayStr +
-    "&to=" +
-    futureStr +
-    "&token=" +
-    API_KEY;
-
-  const [pastRes, futureRes] = await Promise.all([
-    fetch(pastUrl, { cache: "no-store" }),
-    fetch(futureUrl, { cache: "no-store" }),
+  const [cpi, pce, nfp, fedFunds] = await Promise.all([
+    getFredSeries("CPIAUCSL"),
+    getFredSeries("PCEPI"),
+    getFredSeries("PAYEMS"),
+    getFredSeries("FEDFUNDS"),
   ]);
 
-  const pastData = await pastRes.json();
-  const futureData = await futureRes.json();
+  const cpiLatest = Number(cpi[0]?.value);
+  const cpiYearAgo = Number(cpi[12]?.value);
+  const cpiPrev = Number(cpi[1]?.value);
 
-  const pastEvents = (pastData.economicCalendar || []).reverse();
-  const futureEvents = futureData.economicCalendar || [];
+  const pceLatest = Number(pce[0]?.value);
+  const pceYearAgo = Number(pce[12]?.value);
+  const pcePrev = Number(pce[1]?.value);
 
-  const result = [
-    buildItem(
-      "CPI",
-      pastEvents,
-      futureEvents,
-      ["Consumer Price Index", "CPI"],
-      "高"
-    ),
-    buildItem(
-      "PCE",
-      pastEvents,
-      futureEvents,
-      ["PCE Price Index", "Personal Consumption"],
-      "高"
-    ),
-    buildItem(
-      "非農 NFP",
-      pastEvents,
-      futureEvents,
-      ["Nonfarm Payrolls", "Non Farm Payrolls", "NFP"],
-      "高"
-    ),
-    buildItem(
-      "FOMC",
-      pastEvents,
-      futureEvents,
-      ["FOMC", "Fed Interest Rate Decision", "Federal Reserve"],
-      "極高"
-    ),
-  ];
+  const nfpLatest = Number(nfp[0]?.value);
+  const nfpPrev = Number(nfp[1]?.value);
+  const nfpChange = nfpLatest - nfpPrev;
 
-  return NextResponse.json(result);
+  const fedLatest = Number(fedFunds[0]?.value);
+  const fedPrev = Number(fedFunds[1]?.value);
+
+  return NextResponse.json([
+    {
+      name: "CPI",
+      actual: isFinite(cpiLatest) && isFinite(cpiYearAgo)
+        ? pctYoY(cpiLatest, cpiYearAgo).toFixed(2) + "%"
+        : "等待資料",
+      forecast: "—",
+      previous: isFinite(cpiPrev) && isFinite(cpi[13]?.value)
+        ? pctYoY(cpiPrev, Number(cpi[13].value)).toFixed(2) + "%"
+        : "—",
+      time: "最新月份：" + (cpi[0]?.date || "—"),
+      impact: "高",
+      updated: true,
+    },
+    {
+      name: "PCE",
+      actual: isFinite(pceLatest) && isFinite(pceYearAgo)
+        ? pctYoY(pceLatest, pceYearAgo).toFixed(2) + "%"
+        : "等待資料",
+      forecast: "—",
+      previous: isFinite(pcePrev) && isFinite(pce[13]?.value)
+        ? pctYoY(pcePrev, Number(pce[13].value)).toFixed(2) + "%"
+        : "—",
+      time: "最新月份：" + (pce[0]?.date || "—"),
+      impact: "高",
+      updated: true,
+    },
+    {
+      name: "非農 NFP",
+      actual: isFinite(nfpChange)
+        ? nfpChange.toFixed(0) + "K"
+        : "等待資料",
+      forecast: "—",
+      previous: "上月總量：" + (isFinite(nfpPrev) ? nfpPrev.toFixed(0) + "K" : "—"),
+      time: "最新月份：" + (nfp[0]?.date || "—"),
+      impact: "高",
+      updated: true,
+    },
+    {
+      name: "FOMC / 利率",
+      actual: isFinite(fedLatest) ? fedLatest.toFixed(2) + "%" : "等待資料",
+      forecast: "—",
+      previous: isFinite(fedPrev) ? fedPrev.toFixed(2) + "%" : "—",
+      time: "最新月份：" + (fedFunds[0]?.date || "—"),
+      impact: "極高",
+      updated: true,
+    },
+  ]);
 }
