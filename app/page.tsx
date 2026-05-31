@@ -30,7 +30,7 @@ const demoMarketCards = [
 const demoMacroEvents = [
   {
     name: 'CPI',
-    actual: '等待公布',
+    actual: '等待資料',
     forecast: '—',
     previous: '—',
     time: '下次公布：依經濟日曆',
@@ -38,8 +38,8 @@ const demoMacroEvents = [
     updated: false,
   },
   {
-    name: 'FOMC',
-    actual: '等待會議',
+    name: 'FOMC / 利率',
+    actual: '等待資料',
     forecast: '—',
     previous: '—',
     time: '下次會議：依 Fed 日曆',
@@ -48,7 +48,7 @@ const demoMacroEvents = [
   },
   {
     name: '非農 NFP',
-    actual: '等待公布',
+    actual: '等待資料',
     forecast: '—',
     previous: '—',
     time: '下次公布：依經濟日曆',
@@ -57,7 +57,7 @@ const demoMacroEvents = [
   },
   {
     name: 'PCE',
-    actual: '等待公布',
+    actual: '等待資料',
     forecast: '—',
     previous: '—',
     time: '下次公布：依經濟日曆',
@@ -74,7 +74,9 @@ async function safeFetch(endpoint: string, fallback: any) {
 
     if (!res.ok) throw new Error('API not ready')
 
-    return await res.json()
+    const data = await res.json()
+
+    return data
   } catch (error) {
     return fallback
   }
@@ -119,10 +121,7 @@ function ScoreRing({ score }: { score: number }) {
         <div className="absolute inset-3 rounded-full border border-white/10" />
 
         <div className="text-center">
-          <div className={`text-4xl font-semibold ${color}`}>
-            {score}
-          </div>
-
+          <div className={`text-4xl font-semibold ${color}`}>{score}</div>
           <div className="text-xs text-zinc-400">/ 100</div>
         </div>
       </div>
@@ -142,15 +141,34 @@ function formatNow() {
   })
 }
 
+function isValidMarketData(data: any) {
+  return (
+    Array.isArray(data) &&
+    data.length > 0 &&
+    data.some((item) => item?.value && item?.source && item.source !== 'Demo')
+  )
+}
+
+function isValidMacroData(data: any) {
+  return (
+    Array.isArray(data) &&
+    data.length > 0 &&
+    data.some(
+      (item) =>
+        item?.actual &&
+        item.actual !== '等待資料' &&
+        item.actual !== '—' &&
+        item.actual !== '尚未設定 FRED_API_KEY'
+    )
+  )
+}
+
 export default function DeepResearchDashboard() {
   const [updatedAt, setUpdatedAt] = useState('尚未刷新')
   const [loading, setLoading] = useState(false)
   const [connected, setConnected] = useState(false)
-
   const [marketCards, setMarketCards] = useState(demoMarketCards)
-
-  const [macroEvents, setMacroEvents] =
-    useState(demoMacroEvents)
+  const [macroEvents, setMacroEvents] = useState(demoMacroEvents)
 
   const [latestAlert, setLatestAlert] = useState({
     title: '等待下一個高影響數據公布',
@@ -161,38 +179,19 @@ export default function DeepResearchDashboard() {
 
   const buyCallScore = useMemo(() => {
     const qqqStrong =
-      marketCards.find((m) => m.label === 'QQQ')?.status ===
-      'up'
-        ? 18
-        : 10
+      marketCards.find((m) => m.label === 'QQQ')?.status === 'up' ? 18 : 10
 
     const spyStrong =
-      marketCards.find((m) => m.label === 'SPY')?.status ===
-      'up'
-        ? 15
-        : 8
+      marketCards.find((m) => m.label === 'SPY')?.status === 'up' ? 15 : 8
 
     const vixOk =
-      marketCards.find((m) => m.label === 'VIX')?.status ===
-      'down'
-        ? 18
-        : 8
+      marketCards.find((m) => m.label === 'VIX')?.status === 'down' ? 18 : 8
 
-    return Math.max(
-      0,
-      Math.min(
-        100,
-        Math.round(qqqStrong + spyStrong + vixOk + 35)
-      )
-    )
+    return Math.max(0, Math.min(100, Math.round(qqqStrong + spyStrong + vixOk + 35)))
   }, [marketCards])
 
   const marketStatus =
-    buyCallScore >= 80
-      ? 'Risk On'
-      : buyCallScore >= 60
-      ? 'Neutral'
-      : 'Risk Off'
+    buyCallScore >= 80 ? 'Risk On' : buyCallScore >= 60 ? 'Neutral' : 'Risk Off'
 
   const statusTone = getStatusTone(buyCallScore)
 
@@ -200,35 +199,49 @@ export default function DeepResearchDashboard() {
     setLoading(true)
 
     const [market, macro] = await Promise.all([
-      safeFetch('/api/market', demoMarketCards),
-      safeFetch('/api/macro', demoMacroEvents),
+      safeFetch('/api/market', null),
+      safeFetch('/api/macro', null),
     ])
 
-    setMarketCards(
-      Array.isArray(market) ? market : demoMarketCards
-    )
+    const marketOk = isValidMarketData(market)
+    const macroOk = isValidMacroData(macro)
 
-    setMacroEvents(
-      Array.isArray(macro) ? macro : demoMacroEvents
-    )
+    if (marketOk) {
+      setMarketCards(market)
+    }
 
-    const hasRealSource = [
-      ...(Array.isArray(market) ? market : []),
-    ].some((x: any) => x.source && x.source !== 'Demo')
+    if (macroOk) {
+      setMacroEvents(macro)
+    }
 
-    setConnected(hasRealSource)
-
+    setConnected(marketOk || macroOk)
     setUpdatedAt(formatNow())
 
-    setLatestAlert({
-      title: hasRealSource
-        ? '最新數據已更新'
-        : '目前使用示範資料',
-      detail: hasRealSource
-        ? '市場報價與總經資料已完成更新。'
-        : '前端已預留即時 API 串接位置。',
-      updated: hasRealSource,
-    })
+    if (marketOk && macroOk) {
+      setLatestAlert({
+        title: '最新數據已更新',
+        detail: '市場報價與高影響經濟數據已完成更新。',
+        updated: true,
+      })
+    } else if (marketOk && !macroOk) {
+      setLatestAlert({
+        title: '市場報價已更新',
+        detail: '高影響經濟數據本次未取得新資料，系統已保留上一筆成功資料。',
+        updated: true,
+      })
+    } else if (!marketOk && macroOk) {
+      setLatestAlert({
+        title: '高影響經濟數據已更新',
+        detail: '市場報價本次未取得新資料，系統已保留上一筆成功資料。',
+        updated: true,
+      })
+    } else {
+      setLatestAlert({
+        title: '本次更新未取得新資料',
+        detail: '系統已保留上一筆成功資料，避免畫面跳回空白。',
+        updated: false,
+      })
+    }
 
     setLoading(false)
   }
@@ -244,7 +257,6 @@ export default function DeepResearchDashboard() {
   return (
     <div className="min-h-screen bg-[#0D0D0D] p-4 text-[#F3F1EC] md:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
-
         <motion.div
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
@@ -261,8 +273,7 @@ export default function DeepResearchDashboard() {
             </h1>
 
             <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-400">
-              整合總經、流動性與市場情緒，
-              用來判斷今天是否適合進攻 Buy Call。
+              整合總經、流動性與市場情緒，用來判斷今天是否適合進攻 Buy Call。
             </p>
           </div>
 
@@ -273,16 +284,11 @@ export default function DeepResearchDashboard() {
               ) : (
                 <WifiOff className="mr-1 h-3 w-3" />
               )}
-
-              {connected ? '即時串接' : '示範資料'}
+              {connected ? '即時串接' : '等待更新'}
             </Pill>
 
             <Pill tone={statusTone}>
-              {statusTone === 'green'
-                ? '🟢'
-                : statusTone === 'red'
-                ? '🔴'
-                : '🟡'}{' '}
+              {statusTone === 'green' ? '🟢' : statusTone === 'red' ? '🔴' : '🟡'}{' '}
               {marketStatus}
             </Pill>
 
@@ -291,12 +297,7 @@ export default function DeepResearchDashboard() {
               disabled={loading}
               className="rounded-2xl bg-[#C8A96B] text-black hover:bg-[#E6C77D]"
             >
-              <RefreshCw
-                className={`mr-2 h-4 w-4 ${
-                  loading ? 'animate-spin' : ''
-                }`}
-              />
-
+              <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               {loading ? '更新中' : '刷新數據'}
             </Button>
           </div>
@@ -304,7 +305,6 @@ export default function DeepResearchDashboard() {
 
         <Card className="rounded-3xl border-[#C8A96B]/20 bg-gradient-to-r from-[#161616] to-[#0D0D0D]">
           <CardContent className="grid gap-4 p-5 md:grid-cols-3 md:items-center">
-
             <div className="md:col-span-2">
               <div className="mb-2 flex items-center gap-2">
                 <Bell className="h-5 w-5 text-[#E6C77D]" />
@@ -313,14 +313,10 @@ export default function DeepResearchDashboard() {
                   最新數據提醒欄位
                 </span>
 
-                {latestAlert.updated && (
-                  <Pill tone="green">NEW</Pill>
-                )}
+                {latestAlert.updated && <Pill tone="green">NEW</Pill>}
               </div>
 
-              <div className="text-lg font-semibold">
-                {latestAlert.title}
-              </div>
+              <div className="text-lg font-semibold">{latestAlert.title}</div>
 
               <p className="mt-2 text-sm leading-7 text-zinc-300">
                 {latestAlert.detail}
@@ -333,13 +329,8 @@ export default function DeepResearchDashboard() {
                 資料更新狀態
               </div>
 
-              <div className="mt-2">
-                最後更新：{updatedAt}
-              </div>
-
-              <div className="mt-1">
-                自動刷新：每 60 秒
-              </div>
+              <div className="mt-2">最後更新：{updatedAt}</div>
+              <div className="mt-1">自動刷新：每 60 秒</div>
             </div>
           </CardContent>
         </Card>
@@ -361,9 +352,7 @@ export default function DeepResearchDashboard() {
                   )}
                 </div>
 
-                <div className="mt-3 text-2xl font-semibold">
-                  {m.value}
-                </div>
+                <div className="mt-3 text-2xl font-semibold">{m.value}</div>
 
                 <div
                   className={
@@ -384,19 +373,15 @@ export default function DeepResearchDashboard() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
-
           <Card className="rounded-3xl border-[#C8A96B]/20 bg-[#161616] lg:col-span-2">
             <CardContent className="p-6">
-
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2 text-lg font-semibold">
                   <CalendarClock className="text-[#C8A96B]" />
                   高影響經濟數據
                 </div>
 
-                <Pill tone="blue">
-                  CPI / PCE / NFP / FOMC
-                </Pill>
+                <Pill tone="blue">CPI / PCE / NFP / FOMC</Pill>
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
@@ -406,42 +391,35 @@ export default function DeepResearchDashboard() {
                     className="rounded-2xl border border-white/10 bg-[#0D0D0D] p-4"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-medium">
-                        {e.name}
-                      </span>
-
+                      <span className="font-medium">{e.name}</span>
                       <Pill>{e.impact}</Pill>
                     </div>
 
                     <div className="mt-3 space-y-1">
+                      <div className="text-2xl font-semibold text-white">
+                        {e.actual}
+                      </div>
 
-  <div className="text-2xl font-semibold text-white">
-    {e.actual}
-  </div>
+                      <div className="text-xs text-zinc-500">
+                        Forecast：{e.forecast}
+                      </div>
 
-  <div className="text-xs text-zinc-500">
-    Forecast：{e.forecast}
-  </div>
+                      <div className="text-xs text-zinc-500">
+                        Previous：{e.previous}
+                      </div>
 
-  <div className="text-xs text-zinc-500">
-    Previous：{e.previous}
-  </div>
-
-  <div className="pt-2 text-sm text-zinc-500">
-    {e.time}
-  </div>
-
-</div>
+                      <div className="pt-2 text-sm text-zinc-500">
+                        {e.time}
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
-
             </CardContent>
           </Card>
 
           <Card className="rounded-3xl border-[#C8A96B]/20 bg-[#161616]">
             <CardContent className="p-6">
-
               <div className="mb-4 flex items-center gap-2 text-lg font-semibold">
                 <Gauge className="text-[#C8A96B]" />
                 Buy Call 環境評分
@@ -460,12 +438,9 @@ export default function DeepResearchDashboard() {
               >
                 目前狀態：{marketStatus}
               </div>
-
             </CardContent>
           </Card>
-
         </div>
-
       </div>
     </div>
   )
