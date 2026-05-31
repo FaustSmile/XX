@@ -38,12 +38,12 @@ const demoMacroEvents = [
     updated: false,
   },
   {
-    name: 'FOMC / 利率',
+    name: 'PCE',
     actual: '等待資料',
     forecast: '—',
     previous: '—',
-    time: '下次會議：依 Fed 日曆',
-    impact: '極高',
+    time: '下次公布：依經濟日曆',
+    impact: '高',
     updated: false,
   },
   {
@@ -56,12 +56,12 @@ const demoMacroEvents = [
     updated: false,
   },
   {
-    name: 'PCE',
+    name: 'FOMC / 利率',
     actual: '等待資料',
     forecast: '—',
     previous: '—',
-    time: '下次公布：依經濟日曆',
-    impact: '高',
+    time: '下次會議：依 Fed 日曆',
+    impact: '極高',
     updated: false,
   },
 ]
@@ -141,6 +141,19 @@ function formatNow() {
   })
 }
 
+function isInvalidValue(value: any) {
+  const text = String(value || '').trim()
+
+  return (
+    text === '' ||
+    text === '—' ||
+    text === '-' ||
+    text === '等待資料' ||
+    text === '尚未設定 FRED_API_KEY' ||
+    text === '請檢查 FRED_API_KEY'
+  )
+}
+
 function isValidMarketData(data: any) {
   return (
     Array.isArray(data) &&
@@ -150,17 +163,13 @@ function isValidMarketData(data: any) {
 }
 
 function isValidMacroData(data: any) {
-  return (
-    Array.isArray(data) &&
-    data.length > 0 &&
-    data.some(
-      (item) =>
-        item?.actual &&
-        item.actual !== '等待資料' &&
-        item.actual !== '—' &&
-        item.actual !== '尚未設定 FRED_API_KEY'
-    )
-  )
+  if (!Array.isArray(data) || data.length === 0) {
+    return false
+  }
+
+  const validCount = data.filter((item) => !isInvalidValue(item?.actual)).length
+
+  return validCount >= 2
 }
 
 export default function DeepResearchDashboard() {
@@ -226,7 +235,7 @@ export default function DeepResearchDashboard() {
     } else if (marketOk && !macroOk) {
       setLatestAlert({
         title: '市場報價已更新',
-        detail: '高影響經濟數據本次未取得新資料，系統已保留上一筆成功資料。',
+        detail: '高影響經濟數據本次未取得完整資料，系統已保留上一筆成功資料。',
         updated: true,
       })
     } else if (!marketOk && macroOk) {
