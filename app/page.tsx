@@ -413,9 +413,25 @@ export default function DeepResearchDashboard() {
                       <Pill>{e.impact}</Pill>
                     </div>
 
-                    <div className="mt-3 text-sm text-zinc-500">
-                      {e.time}
-                    </div>
+                    <div className="mt-3 space-y-1">
+
+  <div className="text-2xl font-semibold text-white">
+    {e.actual}
+  </div>
+
+  <div className="text-xs text-zinc-500">
+    Forecast：{e.forecast}
+  </div>
+
+  <div className="text-xs text-zinc-500">
+    Previous：{e.previous}
+  </div>
+
+  <div className="pt-2 text-sm text-zinc-500">
+    {e.time}
+  </div>
+
+</div>
                   </div>
                 ))}
               </div>
