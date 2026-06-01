@@ -10,27 +10,118 @@ type FredObservation = {
 };
 
 const SERIES = [
-  { id: "GDP", name: "GDP", group: "經濟成長", unit: "B", format: "number", impact: "高" },
+  // 經濟成長
+  {
+    id: "GDP",
+    name: "GDP",
+    group: "經濟成長",
+    unit: "B",
+    format: "number",
+    impact: "高",
+  },
 
-  { id: "WRESBAL", name: "銀行準備金", group: "流動性", unit: "B", format: "number", impact: "高" },
-  { id: "M2SL", name: "M2 貨幣供給", group: "流動性", unit: "B", format: "number", impact: "中" },
+  // 流動性
+  {
+    id: "WRESBAL",
+    name: "銀行準備金",
+    group: "流動性",
+    unit: "B",
+    format: "number",
+    impact: "高",
+  },
 
-  { id: "FEDFUNDS", name: "Fed Funds 利率", group: "利率", unit: "%", format: "percent", impact: "極高" },
-  { id: "DGS10", name: "10Y 美債殖利率", group: "利率", unit: "%", format: "percent", impact: "極高" },
-  { id: "DGS2", name: "2Y 美債殖利率", group: "利率", unit: "%", format: "percent", impact: "高" },
+  {
+    id: "M2SL",
+    name: "M2 貨幣供給",
+    group: "流動性",
+    unit: "B",
+    format: "number",
+    impact: "中",
+  },
 
-  { id: "CPIAUCSL", name: "CPI", group: "通膨", unit: "% YoY", format: "yoy12", impact: "極高" },
-  { id: "CPILFESL", name: "Core CPI", group: "通膨", unit: "% YoY", format: "yoy12", impact: "極高" },
-  { id: "PCEPI", name: "PCE", group: "通膨", unit: "% YoY", format: "yoy12", impact: "高" },
-  { id: "PCEPILFE", name: "Core PCE", group: "通膨", unit: "% YoY", format: "yoy12", impact: "極高" },
-  { id: "PPIACO", name: "PPI", group: "通膨", unit: "% YoY", format: "yoy12", impact: "中" },
+  // 利率
+  {
+    id: "FEDFUNDS",
+    name: "Fed Funds 利率",
+    group: "利率",
+    unit: "%",
+    format: "percent",
+    impact: "極高",
+  },
 
-  { id: "PAYEMS", name: "非農就業 NFP", group: "就業", unit: "K", format: "change", impact: "極高" },
-  { id: "UNRATE", name: "失業率", group: "就業", unit: "%", format: "percent", impact: "高" },
+  {
+    id: "DGS2",
+    name: "2Y 美債殖利率",
+    group: "利率",
+    unit: "%",
+    format: "percent",
+    impact: "高",
+  },
 
-  { id: "VIXCLS", name: "VIX 恐慌指數", group: "市場風險", unit: "", format: "number", impact: "高" },
-  { id: "DTWEXBGS", name: "美元指數 DXY", group: "市場風險", unit: "", format: "number", impact: "高" },
-  { id: "DCOILWTICO", name: "WTI 原油", group: "市場風險", unit: "USD", format: "number", impact: "中" },
+  // 通膨
+  {
+    id: "CPIAUCSL",
+    name: "CPI",
+    group: "通膨",
+    unit: "% YoY",
+    format: "yoy12",
+    impact: "極高",
+  },
+
+  {
+    id: "CPILFESL",
+    name: "Core CPI",
+    group: "通膨",
+    unit: "% YoY",
+    format: "yoy12",
+    impact: "極高",
+  },
+
+  {
+    id: "PCEPI",
+    name: "PCE",
+    group: "通膨",
+    unit: "% YoY",
+    format: "yoy12",
+    impact: "高",
+  },
+
+  {
+    id: "PCEPILFE",
+    name: "Core PCE",
+    group: "通膨",
+    unit: "% YoY",
+    format: "yoy12",
+    impact: "極高",
+  },
+
+  {
+    id: "PPIACO",
+    name: "PPI",
+    group: "通膨",
+    unit: "% YoY",
+    format: "yoy12",
+    impact: "中",
+  },
+
+  // 就業
+  {
+    id: "PAYEMS",
+    name: "非農就業 NFP",
+    group: "就業",
+    unit: "K",
+    format: "change",
+    impact: "極高",
+  },
+
+  {
+    id: "UNRATE",
+    name: "失業率",
+    group: "就業",
+    unit: "%",
+    format: "percent",
+    impact: "高",
+  },
 ];
 
 function sleep(ms: number) {
@@ -72,11 +163,15 @@ async function getFredSeries(seriesId: string): Promise<FredObservation[]> {
 
 function fmtNumber(n: number) {
   if (!Number.isFinite(n)) return "—";
-  return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+
+  return n.toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+  });
 }
 
 function fmtPercent(n: number) {
   if (!Number.isFinite(n)) return "—";
+
   return n.toFixed(2) + "%";
 }
 
@@ -87,6 +182,7 @@ function pctYoY(latest: number, yearAgo: number) {
 function buildValue(series: FredObservation[], format: string) {
   const latest = Number(series[0]?.value);
   const prev = Number(series[1]?.value);
+
   const yearAgo12 = Number(series[12]?.value);
   const prevYearAgo12 = Number(series[13]?.value);
 
@@ -103,6 +199,7 @@ function buildValue(series: FredObservation[], format: string) {
         Number.isFinite(latest) && Number.isFinite(yearAgo12)
           ? fmtPercent(pctYoY(latest, yearAgo12))
           : "—",
+
       previous:
         Number.isFinite(prev) && Number.isFinite(prevYearAgo12)
           ? fmtPercent(pctYoY(prev, prevYearAgo12))
@@ -114,7 +211,10 @@ function buildValue(series: FredObservation[], format: string) {
     const change = latest - prev;
 
     return {
-      actual: Number.isFinite(change) ? fmtNumber(change) + "K" : "—",
+      actual: Number.isFinite(change)
+        ? fmtNumber(change) + "K"
+        : "—",
+
       previous: Number.isFinite(prev)
         ? "上月總量：" + fmtNumber(prev) + "K"
         : "—",
@@ -129,6 +229,7 @@ function buildValue(series: FredObservation[], format: string) {
 
 async function buildItem(s: any) {
   const data = await getFredSeries(s.id);
+
   const value = buildValue(data, s.format);
 
   return {
@@ -157,6 +258,7 @@ export async function GET() {
 
     for (const s of SERIES) {
       const item = await buildItem(s);
+
       items.push(item);
 
       await sleep(150);
