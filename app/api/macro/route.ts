@@ -109,7 +109,7 @@ const SERIES = [
     id: "PAYEMS",
     name: "非農就業 NFP",
     group: "就業",
-    unit: "K",
+    unit: "",
     format: "change",
     impact: "極高",
   },
