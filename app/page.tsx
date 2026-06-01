@@ -117,23 +117,33 @@ export default function DeepResearchDashboard() {
   const status = getStatus(score)
 
   async function refreshMarket() {
-    setLoading(true)
+  setLoading(true)
 
-    const market = await safeFetch('/api/market', null)
-    const marketOk = isValidMarketData(market)
+  const market = await safeFetch('/api/market', null)
 
-    if (marketOk) setMarketCards(market)
+  const marketOk = isValidMarketData(market)
 
-    setConnected(marketOk || macroItems.length > 0)
-    setUpdatedAt(formatNow())
-    setLatestAlert({
-      title: marketOk ? '市場報價已更新' : '市場報價本次未取得新資料',
-      detail: '總經資料不會每分鐘刷新，會保留最近一次成功同步結果。',
-      updated: marketOk,
-    })
-
-    setLoading(false)
+  if (marketOk) {
+    setMarketCards(market)
   }
+
+  setConnected(marketOk || macroItems.length > 0)
+
+  setUpdatedAt(formatNow())
+
+  setLatestAlert({
+    title: marketOk
+      ? '市場報價已更新'
+      : '市場報價本次未取得新資料',
+
+    detail:
+      '總經資料不會每分鐘刷新，會保留最近一次成功同步結果。',
+
+    updated: marketOk,
+  })
+
+  setLoading(false)
+}
 
   async function initData() {
     setLoading(true)
