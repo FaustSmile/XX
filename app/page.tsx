@@ -2,12 +2,10 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import GaugeComponent from 'react-gauge-component'
 import {
   ArrowDownRight,
   ArrowUpRight,
   Bell,
-  CalendarClock,
   Database,
   Gauge,
   RefreshCw,
@@ -23,17 +21,22 @@ const demoMarketCards = [
   { label: 'SPY', value: '638.42', chg: '+0.42%', status: 'up', source: 'Demo' },
   { label: 'QQQ', value: '571.20', chg: '+0.68%', status: 'up', source: 'Demo' },
   { label: 'VIX', value: '14.8', chg: '-3.1%', status: 'down', source: 'Demo' },
-  { label: 'DXY', value: '98.7', chg: '-0.18%', status: 'down', source: 'Demo' },
   { label: '10Y', value: '4.12%', chg: '-0.05', status: 'down', source: 'Demo' },
-  { label: 'BTC', value: '102480', chg: '+1.9%', status: 'up', source: 'Demo' },
+  { label: 'DXY', value: '98.7', chg: '-0.18%', status: 'down', source: 'Demo' },
+  { label: 'WTI', value: '78.40', chg: '+0.9%', status: 'up', source: 'Demo' },
 ]
 
-const demoMacroEvents = [
-  { name: 'CPI', actual: '等待資料', forecast: '—', previous: '—', time: '等待首次同步', impact: '高' },
-  { name: 'PCE', actual: '等待資料', forecast: '—', previous: '—', time: '等待首次同步', impact: '高' },
-  { name: '非農 NFP', actual: '等待資料', forecast: '—', previous: '—', time: '等待首次同步', impact: '高' },
-  { name: 'FOMC / 利率', actual: '等待資料', forecast: '—', previous: '—', time: '等待首次同步', impact: '極高' },
-]
+type MacroItem = {
+  id: string
+  name: string
+  group: string
+  actual: string
+  previous: string
+  unit: string
+  impact: string
+  time: string
+  source: string
+}
 
 async function safeFetch(endpoint: string, fallback: any) {
   try {
@@ -45,13 +48,7 @@ async function safeFetch(endpoint: string, fallback: any) {
   }
 }
 
-function Pill({
-  children,
-  tone = 'gold',
-}: {
-  children: React.ReactNode
-  tone?: string
-}) {
+function Pill({ children, tone = 'gold' }: { children: React.ReactNode; tone?: string }) {
   const cls =
     tone === 'green'
       ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
@@ -61,40 +58,46 @@ function Pill({
       ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
       : 'bg-[#C8A96B]/15 text-[#E6C77D] border-[#C8A96B]/30'
 
-  return (
-    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs ${cls}`}>
-      {children}
-    </span>
-  )
-}
-
-function getStatusTone(score: number) {
-  if (score >= 80) return 'green'
-  if (score >= 60) return 'gold'
-  return 'red'
+  return <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs ${cls}`}>{children}</span>
 }
 
 function formatNow() {
   return new Date().toLocaleString('zh-TW', { hour12: false })
 }
 
-function isInvalidValue(value: any) {
-  const text = String(value || '').trim()
-  return text === '' || text === '—' || text === '-' || text === '等待資料'
-}
-
 function isValidMarketData(data: any) {
-  return (
-    Array.isArray(data) &&
-    data.length > 0 &&
-    data.some((item) => item?.value && item?.source && item.source !== 'Demo')
-  )
+  return Array.isArray(data) && data.length > 0 && data.some((item) => item?.value && item?.source && item.source !== 'Demo')
 }
 
-function isValidMacroData(data: any) {
-  if (!Array.isArray(data) || data.length === 0) return false
-  const validCount = data.filter((item) => !isInvalidValue(item?.actual)).length
-  return validCount >= 2
+function groupMacro(items: MacroItem[]) {
+  return items.reduce<Record<string, MacroItem[]>>((acc, item) => {
+    if (!acc[item.group]) acc[item.group] = []
+    acc[item.group].push(item)
+    return acc
+  }, {})
+}
+
+function getRiskScore(marketCards: any[], macroItems: MacroItem[]) {
+  const qqqUp = marketCards.find((m) => m.label === 'QQQ')?.status === 'up' ? 20 : 10
+  const spyUp = marketCards.find((m) => m.label === 'SPY')?.status === 'up' ? 15 : 8
+  const vixDown = marketCards.find((m) => m.label === 'VIX')?.status === 'down' ? 20 : 8
+
+  const vix = macroItems.find((m) => m.id === 'VIXCLS')
+  const tenY = macroItems.find((m) => m.id === 'DGS10')
+
+  const vixNum = Number(String(vix?.actual || '').replace(/,/g, ''))
+  const tenYNum = Number(String(tenY?.actual || '').replace('%', ''))
+
+  const vixScore = Number.isFinite(vixNum) && vixNum < 20 ? 15 : 8
+  const rateScore = Number.isFinite(tenYNum) && tenYNum < 4.5 ? 15 : 8
+
+  return Math.max(0, Math.min(100, qqqUp + spyUp + vixDown + vixScore + rateScore + 15))
+}
+
+function getStatus(score: number) {
+  if (score >= 80) return { text: 'Risk On', tone: 'green' }
+  if (score >= 60) return { text: 'Neutral', tone: 'gold' }
+  return { text: 'Risk Off', tone: 'red' }
 }
 
 export default function DeepResearchDashboard() {
@@ -102,69 +105,55 @@ export default function DeepResearchDashboard() {
   const [loading, setLoading] = useState(false)
   const [connected, setConnected] = useState(false)
   const [marketCards, setMarketCards] = useState(demoMarketCards)
-  const [macroEvents, setMacroEvents] = useState(demoMacroEvents)
-  const [fearGreed, setFearGreed] = useState({
-    value: 50,
-    status: 'Neutral',
-  })
-
+  const [macroItems, setMacroItems] = useState<MacroItem[]>([])
   const [latestAlert, setLatestAlert] = useState({
     title: '等待初始化',
-    detail: '系統正在等待首次同步市場與總經資料。',
+    detail: '系統正在同步市場與總經資料。',
     updated: false,
   })
 
-  const buyCallScore = useMemo(() => {
-    const qqqStrong = marketCards.find((m) => m.label === 'QQQ')?.status === 'up' ? 18 : 10
-    const spyStrong = marketCards.find((m) => m.label === 'SPY')?.status === 'up' ? 15 : 8
-    const vixOk = marketCards.find((m) => m.label === 'VIX')?.status === 'down' ? 18 : 8
-    const fgScore = fearGreed.value >= 40 && fearGreed.value <= 75 ? 20 : 10
+  const grouped = useMemo(() => groupMacro(macroItems), [macroItems])
+  const score = useMemo(() => getRiskScore(marketCards, macroItems), [marketCards, macroItems])
+  const status = getStatus(score)
 
-    return Math.max(0, Math.min(100, Math.round(qqqStrong + spyStrong + vixOk + fgScore + 15)))
-  }, [marketCards, fearGreed])
-
-  const marketStatus =
-    buyCallScore >= 80 ? 'Risk On' : buyCallScore >= 60 ? 'Neutral' : 'Risk Off'
-
-  const statusTone = getStatusTone(buyCallScore)
-
-  async function refreshData(fetchMacro = false) {
+  async function refreshMarket() {
     setLoading(true)
 
-    const [market, fg] = await Promise.all([
+    const market = await safeFetch('/api/market', null)
+    const marketOk = isValidMarketData(market)
+
+    if (marketOk) setMarketCards(market)
+
+    setConnected(marketOk || macroItems.length > 0)
+    setUpdatedAt(formatNow())
+    setLatestAlert({
+      title: marketOk ? '市場報價已更新' : '市場報價本次未取得新資料',
+      detail: '總經資料不會每分鐘刷新，會保留最近一次成功同步結果。',
+      updated: marketOk,
+    })
+
+    setLoading(false)
+  }
+
+  async function initData() {
+    setLoading(true)
+
+    const [market, macro] = await Promise.all([
       safeFetch('/api/market', null),
-      safeFetch('/api/feargreed', null),
+      safeFetch('/api/macro', null),
     ])
 
     const marketOk = isValidMarketData(market)
+    const macroOk = Array.isArray(macro?.items) && macro.items.length > 0
 
-    if (marketOk) {
-      setMarketCards(market)
-    }
+    if (marketOk) setMarketCards(market)
+    if (macroOk) setMacroItems(macro.items)
 
-    if (fg?.value) {
-      setFearGreed(fg)
-    }
-
-    let macroOk = false
-
-    if (fetchMacro) {
-      const macro = await safeFetch('/api/macro', null)
-      macroOk = isValidMacroData(macro)
-
-      if (macroOk) {
-        setMacroEvents(macro)
-      }
-    }
-
-    setConnected(marketOk || macroOk || Boolean(fg?.value))
+    setConnected(marketOk || macroOk)
     setUpdatedAt(formatNow())
-
     setLatestAlert({
-      title: fetchMacro ? '市場與高影響經濟數據已初始化' : '市場報價已更新',
-      detail: fetchMacro
-        ? '高影響經濟數據只會在首次開啟網頁時同步。'
-        : '目前僅刷新市場報價與恐懼貪婪指數，高影響經濟數據維持首次同步資料。',
+      title: '總經資料已同步',
+      detail: '已載入 GDP、TGA、銀行準備金、利率、通膨、就業、VIX、DXY、油價等資料。',
       updated: true,
     })
 
@@ -172,14 +161,16 @@ export default function DeepResearchDashboard() {
   }
 
   useEffect(() => {
-    refreshData(true)
+    initData()
 
     const timer = setInterval(() => {
-      refreshData(false)
+      refreshMarket()
     }, 60000)
 
     return () => clearInterval(timer)
   }, [])
+
+  const groupOrder = ['流動性', '利率', '通膨', '就業', '市場風險', '經濟成長']
 
   return (
     <div className="min-h-screen bg-[#0D0D0D] p-4 text-[#F3F1EC] md:p-8">
@@ -196,11 +187,11 @@ export default function DeepResearchDashboard() {
             </div>
 
             <h1 className="text-3xl font-semibold tracking-tight md:text-5xl">
-              深度研究儀表板
+              總經深度研究儀表板
             </h1>
 
             <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-400">
-              整合總經、流動性、市場情緒，用來判斷今天是否適合進攻 Buy Call。
+              追蹤流動性、利率、通膨、就業與市場風險，用來判斷美股風險偏好與 Buy Call 環境。
             </p>
           </div>
 
@@ -210,15 +201,11 @@ export default function DeepResearchDashboard() {
               {connected ? '即時串接' : '等待更新'}
             </Pill>
 
-            <Pill tone={statusTone}>
-              {statusTone === 'green' ? '🟢' : statusTone === 'red' ? '🔴' : '🟡'} {marketStatus}
+            <Pill tone={status.tone}>
+              {status.tone === 'green' ? '🟢' : status.tone === 'red' ? '🔴' : '🟡'} {status.text}
             </Pill>
 
-            <Button
-              onClick={() => refreshData(false)}
-              disabled={loading}
-              className="rounded-2xl bg-[#C8A96B] text-black hover:bg-[#E6C77D]"
-            >
+            <Button onClick={refreshMarket} disabled={loading} className="rounded-2xl bg-[#C8A96B] text-black hover:bg-[#E6C77D]">
               <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               {loading ? '更新中' : '刷新市場'}
             </Button>
@@ -233,7 +220,6 @@ export default function DeepResearchDashboard() {
                 <span className="font-semibold text-[#E6C77D]">最新數據提醒欄位</span>
                 {latestAlert.updated && <Pill tone="green">NEW</Pill>}
               </div>
-
               <div className="text-lg font-semibold">{latestAlert.title}</div>
               <p className="mt-2 text-sm leading-7 text-zinc-300">{latestAlert.detail}</p>
             </div>
@@ -243,9 +229,9 @@ export default function DeepResearchDashboard() {
                 <Database className="h-4 w-4" />
                 資料更新狀態
               </div>
-
               <div className="mt-2">最後更新：{updatedAt}</div>
-              <div className="mt-1">自動刷新：每 60 秒</div>
+              <div className="mt-1">市場報價：每 60 秒</div>
+              <div className="mt-1">總經資料：重新開啟網頁時同步</div>
             </div>
           </CardContent>
         </Card>
@@ -262,16 +248,11 @@ export default function DeepResearchDashboard() {
                     <ArrowDownRight className="h-4 w-4 text-red-300" />
                   )}
                 </div>
-
                 <div className="mt-3 text-2xl font-semibold">{m.value}</div>
-
                 <div className={m.status === 'up' ? 'text-sm text-emerald-300' : 'text-sm text-red-300'}>
                   {m.chg}
                 </div>
-
-                <div className="mt-2 text-[10px] text-zinc-600">
-                  Source: {m.source || 'API'}
-                </div>
+                <div className="mt-2 text-[10px] text-zinc-600">Source: {m.source || 'API'}</div>
               </CardContent>
             </Card>
           ))}
@@ -282,29 +263,42 @@ export default function DeepResearchDashboard() {
             <CardContent className="p-6">
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2 text-lg font-semibold">
-                  <CalendarClock className="text-[#C8A96B]" />
-                  高影響經濟數據
+                  <Database className="text-[#C8A96B]" />
+                  總經與流動性數據
                 </div>
-
-                <Pill tone="blue">CPI / PCE / NFP / FOMC</Pill>
+                <Pill tone="blue">FRED API</Pill>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                {macroEvents.map((e) => (
-                  <div key={e.name} className="rounded-2xl border border-white/10 bg-[#0D0D0D] p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{e.name}</span>
-                      <Pill>{e.impact}</Pill>
-                    </div>
+              <div className="space-y-6">
+                {groupOrder.map((group) => {
+                  const list = grouped[group] || []
+                  if (list.length === 0) return null
 
-                    <div className="mt-3 space-y-1">
-                      <div className="text-2xl font-semibold text-white">{e.actual}</div>
-                      <div className="text-xs text-zinc-500">Forecast：{e.forecast}</div>
-                      <div className="text-xs text-zinc-500">Previous：{e.previous}</div>
-                      <div className="pt-2 text-sm text-zinc-500">{e.time}</div>
+                  return (
+                    <div key={group}>
+                      <div className="mb-3 text-sm font-semibold text-[#E6C77D]">{group}</div>
+
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {list.map((item) => (
+                          <div key={item.id} className="rounded-2xl border border-white/10 bg-[#0D0D0D] p-4">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">{item.name}</span>
+                              <Pill>{item.impact}</Pill>
+                            </div>
+
+                            <div className="mt-3 text-2xl font-semibold text-white">
+                              {item.actual}
+                              {item.unit && item.format !== 'percent' ? <span className="ml-1 text-sm text-zinc-500">{item.unit}</span> : null}
+                            </div>
+
+                            <div className="mt-2 text-xs text-zinc-500">Previous：{item.previous}</div>
+                            <div className="pt-2 text-sm text-zinc-500">{item.time}</div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </CardContent>
           </Card>
@@ -313,36 +307,25 @@ export default function DeepResearchDashboard() {
             <CardContent className="p-6">
               <div className="mb-4 flex items-center gap-2 text-lg font-semibold">
                 <Gauge className="text-[#C8A96B]" />
-                Fear & Greed Index
+                總經環境評分
               </div>
 
-              <div className="mt-4">
-                <GaugeComponent
-                  type="semicircle"
-                  value={fearGreed.value}
-                  minValue={0}
-                  maxValue={100}
-                  arc={{
-                    subArcs: [
-                      { limit: 25, color: '#ef4444', showTick: true },
-                      { limit: 50, color: '#f59e0b', showTick: true },
-                      { limit: 75, color: '#10b981', showTick: true },
-                      { limit: 100, color: '#22c55e', showTick: true },
-                    ],
-                  }}
-                  labels={{
-                    valueLabel: {
-                      style: {
-                        fill: '#E6C77D',
-                        fontSize: '40px',
-                      },
-                    },
-                  }}
-                />
+              <div className="flex items-center justify-center">
+                <div className="relative grid h-36 w-36 place-items-center rounded-full border border-[#C8A96B]/30 bg-black/30 shadow-[0_0_35px_rgba(200,169,107,0.14)]">
+                  <div className="absolute inset-3 rounded-full border border-white/10" />
+                  <div className="text-center">
+                    <div className="text-4xl font-semibold text-[#E6C77D]">{score}</div>
+                    <div className="text-xs text-zinc-400">/ 100</div>
+                  </div>
+                </div>
               </div>
 
               <div className="mt-5 rounded-2xl bg-[#C8A96B]/10 p-4 text-sm leading-6 text-[#E6C77D]">
-                目前市場情緒：{fearGreed.status}
+                目前狀態：{status.text}
+              </div>
+
+              <div className="mt-4 text-sm leading-7 text-zinc-400">
+                分數根據 QQQ、SPY、VIX、10Y殖利率與市場風險偏好做初步判斷。
               </div>
             </CardContent>
           </Card>
