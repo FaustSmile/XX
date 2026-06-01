@@ -48,13 +48,7 @@ async function safeFetch(endpoint: string, fallback: any) {
   }
 }
 
-function Pill({
-  children,
-  tone = 'gold',
-}: {
-  children: React.ReactNode
-  tone?: string
-}) {
+function Pill({ children, tone = 'gold' }: { children: React.ReactNode; tone?: string }) {
   const cls =
     tone === 'green'
       ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
@@ -96,11 +90,11 @@ function getRiskScore(marketCards: any[], macroItems: MacroItem[]) {
   const spyUp = marketCards.find((m) => m.label === 'SPY')?.status === 'up' ? 15 : 8
   const vixDown = marketCards.find((m) => m.label === 'VIX')?.status === 'down' ? 20 : 8
 
-  const vix = macroItems.find((m) => m.id === 'VIXCLS')
-  const tenY = macroItems.find((m) => m.id === 'DGS10')
+  const vix = marketCards.find((m) => m.label === 'VIX')
+  const tenY = marketCards.find((m) => m.label === '10Y')
 
-  const vixNum = Number(String(vix?.actual || '').replace(/,/g, ''))
-  const tenYNum = Number(String(tenY?.actual || '').replace('%', ''))
+  const vixNum = Number(String(vix?.value || '').replace(/,/g, ''))
+  const tenYNum = Number(String(tenY?.value || '').replace('%', ''))
 
   const vixScore = Number.isFinite(vixNum) && vixNum < 20 ? 15 : 8
   const rateScore = Number.isFinite(tenYNum) && tenYNum < 4.5 ? 15 : 8
@@ -154,30 +148,36 @@ export default function DeepResearchDashboard() {
   async function initData() {
     setLoading(true)
 
-    const [market, macro] = await Promise.all([
+    const [market, macro, gdpnow] = await Promise.all([
       safeFetch('/api/market', null),
       safeFetch('/api/macro', null),
+      safeFetch('/api/gdpnow', null),
     ])
 
     const marketOk = isValidMarketData(market)
     const macroOk = Array.isArray(macro?.items) && macro.items.length > 0
+    const gdpNowOk = gdpnow && gdpnow.actual && gdpnow.actual !== '—'
 
     if (marketOk) {
       setMarketCards(market)
     }
 
     if (macroOk) {
-      setMacroItems(macro.items)
+      const baseItems = macro.items
+      setMacroItems(gdpNowOk ? [gdpnow, ...baseItems] : baseItems)
+    } else if (gdpNowOk) {
+      setMacroItems([gdpnow])
     }
 
-    setConnected(marketOk || macroOk)
+    setConnected(marketOk || macroOk || gdpNowOk)
     setUpdatedAt(formatNow())
     setLatestAlert({
-      title: macroOk ? '總經資料已同步' : '總經資料尚未取得',
-      detail: macroOk
-        ? '已載入流動性、利率、通膨、就業、市場風險與經濟成長資料。'
-        : '請檢查 /api/macro 是否有回傳 items 資料。',
-      updated: macroOk,
+      title: macroOk || gdpNowOk ? '總經資料已同步' : '總經資料尚未取得',
+      detail:
+        macroOk || gdpNowOk
+          ? '已載入 GDPNow、流動性、利率、通膨、就業與經濟成長資料。'
+          : '請檢查 /api/macro 與 /api/gdpnow 是否成功回傳資料。',
+      updated: macroOk || gdpNowOk,
     })
 
     setLoading(false)
@@ -193,7 +193,7 @@ export default function DeepResearchDashboard() {
     return () => clearInterval(timer)
   }, [])
 
-  const groupOrder = ['流動性', '利率', '通膨', '就業', '市場風險', '經濟成長']
+  const groupOrder = ['經濟成長', '流動性', '利率', '通膨', '就業']
 
   return (
     <div className="min-h-screen bg-[#0D0D0D] p-4 text-[#F3F1EC] md:p-8">
@@ -214,7 +214,7 @@ export default function DeepResearchDashboard() {
             </h1>
 
             <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-400">
-              追蹤流動性、利率、通膨、就業與市場風險，用來判斷美股風險偏好與 Buy Call 環境。
+              追蹤 GDPNow、流動性、利率、通膨與就業，用來判斷美股風險偏好與 Buy Call 環境。
             </p>
           </div>
 
@@ -310,12 +310,12 @@ export default function DeepResearchDashboard() {
                   總經與流動性數據
                 </div>
 
-                <Pill tone="blue">FRED API</Pill>
+                <Pill tone="blue">FRED / Atlanta Fed</Pill>
               </div>
 
               {macroItems.length === 0 ? (
                 <div className="rounded-2xl border border-white/10 bg-[#0D0D0D] p-6 text-zinc-400">
-                  尚未取得總經資料，請確認 /api/macro 是否成功回傳 items。
+                  尚未取得總經資料，請確認 /api/macro 與 /api/gdpnow 是否成功回傳資料。
                 </div>
               ) : (
                 <div className="space-y-8">
