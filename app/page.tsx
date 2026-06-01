@@ -1,256 +1,308 @@
-"use client";
+'use client'
 
-import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import React, { useEffect, useMemo, useState } from 'react'
+import { motion } from 'framer-motion'
 import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Bell,
   Database,
   RefreshCw,
-  TrendingUp,
-  TrendingDown,
-} from "lucide-react";
+  Sparkles,
+  Wifi,
+  WifiOff,
+} from 'lucide-react'
 
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 
-type MarketItem = {
-  symbol: string;
-  price: number;
-  changePercent: number;
-};
+const demoMarketCards = [
+  { label: 'SPY', value: '等待資料', chg: '—', status: 'up', source: '等待同步' },
+  { label: 'QQQ', value: '等待資料', chg: '—', status: 'up', source: '等待同步' },
+  { label: 'VIX', value: '等待資料', chg: '—', status: 'down', source: '等待同步' },
+  { label: '10Y', value: '等待資料', chg: '—', status: 'down', source: '等待同步' },
+  { label: 'DXY', value: '等待資料', chg: '—', status: 'down', source: '等待同步' },
+  { label: 'WTI', value: '等待資料', chg: '—', status: 'up', source: '等待同步' },
+]
 
 type MacroItem = {
-  id: string;
-  name: string;
-  actual: string;
-  previous: string;
-  impact: string;
-  group: string;
-  time: string;
-  source: string;
-};
+  id: string
+  name: string
+  group: string
+  actual: string
+  previous: string
+  unit: string
+  impact: string
+  time: string
+  source: string
+}
 
-export default function Page() {
-  const [market, setMarket] = useState<MarketItem[]>([]);
-  const [macro, setMacro] = useState<MacroItem[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  async function loadMarket() {
-    try {
-      const res = await fetch("/api/market");
-
-      const data = await res.json();
-
-      if (data.items) {
-        setMarket(data.items);
-      }
-    } catch {}
+async function safeFetch(endpoint: string, fallback: any) {
+  try {
+    const res = await fetch(endpoint, { cache: 'no-store' })
+    if (!res.ok) throw new Error('API not ready')
+    return await res.json()
+  } catch {
+    return fallback
   }
+}
 
-  async function loadMacro() {
-    try {
-      const res = await fetch("/api/macro");
+function Pill({ children, tone = 'gold' }: { children: React.ReactNode; tone?: string }) {
+  const cls =
+    tone === 'green'
+      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+      : tone === 'red'
+      ? 'bg-red-500/15 text-red-300 border-red-500/30'
+      : tone === 'blue'
+      ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+      : 'bg-[#C8A96B]/15 text-[#E6C77D] border-[#C8A96B]/30'
 
-      const data = await res.json();
+  return (
+    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs ${cls}`}>
+      {children}
+    </span>
+  )
+}
 
-      if (data.items) {
-        setMacro(data.items);
-      }
-    } catch {}
-  }
+function formatNow() {
+  return new Date().toLocaleString('zh-TW', { hour12: false })
+}
+
+function isValidMarketData(data: any) {
+  return (
+    Array.isArray(data) &&
+    data.length > 0 &&
+    data.some((item) => item?.value && item?.source && item.source !== 'Demo')
+  )
+}
+
+function groupMacro(items: MacroItem[]) {
+  return items.reduce<Record<string, MacroItem[]>>((acc, item) => {
+    if (!acc[item.group]) acc[item.group] = []
+    acc[item.group].push(item)
+    return acc
+  }, {})
+}
+
+export default function DeepResearchDashboard() {
+  const [updatedAt, setUpdatedAt] = useState('尚未刷新')
+  const [loading, setLoading] = useState(false)
+  const [connected, setConnected] = useState(false)
+  const [marketCards, setMarketCards] = useState(demoMarketCards)
+  const [macroItems, setMacroItems] = useState<MacroItem[]>([])
+  const [latestAlert, setLatestAlert] = useState({
+    title: '等待初始化',
+    detail: '系統正在同步市場與總經資料。',
+    updated: false,
+  })
+
+  const grouped = useMemo(() => groupMacro(macroItems), [macroItems])
 
   async function refreshMarket() {
-    setLoading(true);
+    setLoading(true)
 
-    await loadMarket();
+    const market = await safeFetch('/api/market', null)
+    const marketOk = isValidMarketData(market)
 
-    setLoading(false);
+    if (marketOk) {
+      setMarketCards(market)
+      setConnected(true)
+    }
+
+    setUpdatedAt(formatNow())
+    setLatestAlert({
+      title: marketOk ? '市場報價已更新' : '市場報價本次未取得新資料',
+      detail: '總經資料不會因市場刷新而重新抓取，會保留最近一次成功同步結果。',
+      updated: marketOk,
+    })
+
+    setLoading(false)
+  }
+
+  async function initData() {
+    setLoading(true)
+
+    const [market, macro] = await Promise.all([
+      safeFetch('/api/market', null),
+      safeFetch('/api/macro', null),
+    ])
+
+    const marketOk = isValidMarketData(market)
+    const macroOk = Array.isArray(macro?.items) && macro.items.length > 0
+
+    if (marketOk) setMarketCards(market)
+    if (macroOk) setMacroItems(macro.items)
+
+    setConnected(marketOk || macroOk)
+    setUpdatedAt(formatNow())
+    setLatestAlert({
+      title: macroOk ? '總經資料已同步' : '總經資料部分同步',
+      detail: macroOk ? '已載入流動性、利率、通膨與就業資料。' : '請確認 /api/macro 是否正常。',
+      updated: true,
+    })
+
+    setLoading(false)
   }
 
   useEffect(() => {
-    loadMarket();
-    loadMacro();
-  }, []);
+    initData()
 
-  const macroGroups = useMemo(() => {
-    return {
-      inflation: macro.filter((x) => x.group === "通膨"),
-      jobs: macro.filter((x) => x.group === "就業"),
-      growth: macro.filter((x) => x.group === "經濟成長"),
-      liquidity: macro.filter((x) => x.group === "流動性"),
-      rates: macro.filter((x) => x.group === "利率"),
-    };
-  }, [macro]);
+    const timer = setInterval(() => {
+      refreshMarket()
+    }, 60000)
+
+    return () => clearInterval(timer)
+  }, [])
+
+  const groupOrder = ['經濟成長', '流動性', '利率', '通膨', '就業']
 
   return (
-    <main className="min-h-screen bg-black px-6 py-8 text-white">
-      <div className="mx-auto max-w-[1600px]">
-
-        {/* 標題 */}
-        <div className="mb-8 flex items-center justify-between">
+    <div className="min-h-screen bg-[#0D0D0D] p-4 text-[#F3F1EC] md:p-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between"
+        >
           <div>
-            <h1 className="text-3xl font-bold text-[#E6C77D]">
-              總經儀表板
+            <div className="mb-2 flex items-center gap-2 text-sm text-[#C8A96B]">
+              <Sparkles size={16} />
+              深度研究系統
+            </div>
+
+            <h1 className="text-3xl font-semibold tracking-tight md:text-5xl">
+              總經深度研究儀表板
             </h1>
 
-            <p className="mt-2 text-zinc-400">
-              市場 / 流動性 / 通膨 / 利率 / 就業
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-400">
+              追蹤 SPY、QQQ、VIX、10Y、DXY、WTI，以及流動性、利率、通膨與就業數據。
             </p>
           </div>
 
-          <Button
-            onClick={refreshMarket}
-            disabled={loading}
-            className="rounded-2xl bg-[#C8A96B] text-black hover:bg-[#E6C77D]"
-          >
-            <RefreshCw
-              className={`mr-2 h-4 w-4 ${
-                loading ? "animate-spin" : ""
-              }`}
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <Pill tone={connected ? 'green' : 'red'}>
+              {connected ? <Wifi className="mr-1 h-3 w-3" /> : <WifiOff className="mr-1 h-3 w-3" />}
+              {connected ? '資料已串接' : '等待更新'}
+            </Pill>
 
-            {loading ? "更新中" : "刷新市場"}
-          </Button>
-        </div>
+            <Button
+              onClick={refreshMarket}
+              disabled={loading}
+              className="rounded-2xl bg-[#C8A96B] text-black hover:bg-[#E6C77D]"
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? '更新中' : '刷新市場'}
+            </Button>
+          </div>
+        </motion.div>
 
-        {/* 市場數據 */}
-        <div className="mb-10 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
-          {market.map((item) => {
-            const positive = item.changePercent >= 0;
+        <Card className="rounded-3xl border-[#C8A96B]/20 bg-gradient-to-r from-[#161616] to-[#0D0D0D]">
+          <CardContent className="grid gap-4 p-5 md:grid-cols-3 md:items-center">
+            <div className="md:col-span-2">
+              <div className="mb-2 flex items-center gap-2">
+                <Bell className="h-5 w-5 text-[#E6C77D]" />
+                <span className="font-semibold text-[#E6C77D]">最新數據提醒欄位</span>
+                {latestAlert.updated && <Pill tone="green">NEW</Pill>}
+              </div>
 
-            return (
-              <motion.div
-                key={item.symbol}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-              >
-                <Card className="rounded-3xl border border-white/10 bg-[#111111]">
-                  <CardContent className="p-5">
-                    <div className="mb-4 flex items-center justify-between">
-                      <div className="text-xl font-semibold">
-                        {item.symbol}
-                      </div>
+              <div className="text-lg font-semibold">{latestAlert.title}</div>
+              <p className="mt-2 text-sm leading-7 text-zinc-300">{latestAlert.detail}</p>
+            </div>
 
-                      {positive ? (
-                        <TrendingUp className="text-emerald-400" />
-                      ) : (
-                        <TrendingDown className="text-red-400" />
-                      )}
-                    </div>
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-zinc-400">
+              <div className="flex items-center gap-2 text-[#C8A96B]">
+                <Database className="h-4 w-4" />
+                資料更新狀態
+              </div>
 
-                    <div className="text-4xl font-bold">
-                      {item.price}
-                    </div>
+              <div className="mt-2">最後更新：{updatedAt}</div>
+              <div className="mt-1">市場報價：每 60 秒</div>
+              <div className="mt-1">總經資料：重新開啟網頁時同步</div>
+            </div>
+          </CardContent>
+        </Card>
 
-                    <div
-                      className={`mt-2 text-lg ${
-                        positive
-                          ? "text-emerald-400"
-                          : "text-red-400"
-                      }`}
-                    >
-                      {positive ? "+" : ""}
-                      {item.changePercent.toFixed(2)}%
-                    </div>
+        <div className="grid gap-4 md:grid-cols-6">
+          {marketCards.map((m) => (
+            <Card key={m.label} className="rounded-3xl border-white/10 bg-[#161616] shadow-xl">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between text-sm text-zinc-400">
+                  <span>{m.label}</span>
 
-                    <div className="mt-4 text-sm text-zinc-500">
-                      Source: Finnhub 最新價
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            );
-          })}
-        </div>
-
-        {/* 主區塊 */}
-        <div className="grid gap-6 xl:grid-cols-[1.5fr_420px]">
-
-          {/* 左邊 */}
-          <div className="space-y-6">
-
-            {/* 總經與流動性 */}
-            <Card className="rounded-3xl border-[#C8A96B]/20 bg-[#161616]">
-              <CardContent className="p-6">
-                <div className="mb-6 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-2xl font-bold text-[#E6C77D]">
-                    <Database />
-                    總經與流動性數據
-                  </div>
-
-                  <div className="rounded-full bg-sky-500/20 px-4 py-1 text-sm text-sky-300">
-                    FRED
-                  </div>
+                  {m.status === 'up' ? (
+                    <ArrowUpRight className="h-4 w-4 text-emerald-300" />
+                  ) : (
+                    <ArrowDownRight className="h-4 w-4 text-red-300" />
+                  )}
                 </div>
 
-                {/* 經濟成長 */}
-                <div className="mb-8">
-                  <div className="mb-4 text-xl font-bold text-[#E6C77D]">
-                    經濟成長
-                  </div>
+                <div className="mt-3 text-2xl font-semibold">{m.value}</div>
 
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {macroGroups.growth.map((item) => (
-                      <MacroCard key={item.id} item={item} />
-                    ))}
-                  </div>
+                <div className={m.status === 'up' ? 'text-sm text-emerald-300' : 'text-sm text-red-300'}>
+                  {m.chg}
                 </div>
 
-                {/* 流動性 */}
-                <div className="mb-8">
-                  <div className="mb-4 text-xl font-bold text-[#E6C77D]">
-                    流動性
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {macroGroups.liquidity.map((item) => (
-                      <MacroCard key={item.id} item={item} />
-                    ))}
-                  </div>
-                </div>
-
-                {/* 利率 */}
-                <div className="mb-8">
-                  <div className="mb-4 text-xl font-bold text-[#E6C77D]">
-                    利率
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {macroGroups.rates.map((item) => (
-                      <MacroCard key={item.id} item={item} />
-                    ))}
-                  </div>
-                </div>
-
-                {/* 通膨 */}
-                <div className="mb-8">
-                  <div className="mb-4 text-xl font-bold text-[#E6C77D]">
-                    通膨
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-3">
-                    {macroGroups.inflation.map((item) => (
-                      <MacroCard key={item.id} item={item} />
-                    ))}
-                  </div>
-                </div>
-
-                {/* 就業 */}
-                <div>
-                  <div className="mb-4 text-xl font-bold text-[#E6C77D]">
-                    就業
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {macroGroups.jobs.map((item) => (
-                      <MacroCard key={item.id} item={item} />
-                    ))}
-                  </div>
-                </div>
+                <div className="mt-2 text-[10px] text-zinc-600">Source: {m.source || 'API'}</div>
               </CardContent>
             </Card>
-          </div>
+          ))}
+        </div>
 
-          {/* 右邊外部資訊 */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Card className="rounded-3xl border-[#C8A96B]/20 bg-[#161616] lg:col-span-2">
+            <CardContent className="p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-lg font-semibold">
+                  <Database className="text-[#C8A96B]" />
+                  總經與流動性數據
+                </div>
+
+                <Pill tone="blue">FRED</Pill>
+              </div>
+
+              {macroItems.length === 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-[#0D0D0D] p-6 text-zinc-400">
+                  尚未取得總經資料，請確認 /api/macro 是否成功回傳資料。
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {groupOrder.map((group) => {
+                    const list = grouped[group] || []
+                    if (list.length === 0) return null
+
+                    return (
+                      <div key={group}>
+                        <div className="mb-3 text-sm font-semibold text-[#E6C77D]">{group}</div>
+
+                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                          {list.map((item) => (
+                            <div key={item.id} className="rounded-2xl border border-white/10 bg-[#0D0D0D] p-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-sm font-medium leading-5">{item.name}</span>
+                                <Pill>{item.impact}</Pill>
+                              </div>
+
+                              <div className="mt-3 text-2xl font-semibold text-white">
+                                {item.actual}
+                                {item.unit ? (
+                                  <span className="ml-1 text-sm text-zinc-500">{item.unit}</span>
+                                ) : null}
+                              </div>
+
+                              <div className="mt-2 text-xs text-zinc-500">Previous：{item.previous}</div>
+                              <div className="pt-2 text-xs text-zinc-500">{item.time}</div>
+                              <div className="pt-1 text-[10px] text-zinc-700">Source：{item.source}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card className="rounded-3xl border-[#C8A96B]/20 bg-[#161616]">
             <CardContent className="p-6">
               <div className="mb-4 flex items-center gap-2 text-lg font-semibold">
@@ -259,113 +311,24 @@ export default function Page() {
               </div>
 
               <div className="grid gap-3">
-
-                <ExternalLinkCard
-                  title="Fear & Greed Index"
-                  desc="CNN 市場情緒指數"
-                  href="https://edition.cnn.com/markets/fear-and-greed"
-                />
-
-                <ExternalLinkCard
-                  title="FedWatch Tool"
-                  desc="聯準會利率機率"
-                  href="https://www.cmegroup.com/cn-t/markets/interest-rates/cme-fedwatch-tool.html"
-                />
-
-                <ExternalLinkCard
-                  title="美國 GDP"
-                  desc="美國官方 GDP 數據"
-                  href="https://www.bea.gov/"
-                />
-
-                <ExternalLinkCard
-                  title="美國 TGA"
-                  desc="Treasury General Account"
-                  href="https://fred.stlouisfed.org/series/D2WLTGAL"
-                />
-
-                <ExternalLinkCard
-                  title="銀行準備金"
-                  desc="Fed Reserve Balances"
-                  href="https://fred.stlouisfed.org/release?rid=20"
-                />
-
-                <ExternalLinkCard
-                  title="非農就業 NFP"
-                  desc="美國非農數據"
-                  href="https://hk.investing.com/economic-calendar/nonfarm-payrolls-227"
-                />
-
-                <ExternalLinkCard
-                  title="美國失業率"
-                  desc="Unemployment Rate"
-                  href="https://hk.investing.com/economic-calendar/unemployment-rate-300"
-                />
-
-                <ExternalLinkCard
-                  title="美國 CPI"
-                  desc="消費者物價指數"
-                  href="https://hk.investing.com/economic-calendar/cpi-733/"
-                />
-
-                <ExternalLinkCard
-                  title="美國核心 CPI"
-                  desc="Core CPI"
-                  href="https://hk.investing.com/economic-calendar/core-cpi-736"
-                />
-
-                <ExternalLinkCard
-                  title="美國核心 PCE"
-                  desc="Core PCE"
-                  href="https://hk.investing.com/economic-calendar/core-pce-price-index-905"
-                />
-
-                <ExternalLinkCard
-                  title="美國核心 PPI"
-                  desc="Producer Price Index"
-                  href="https://hk.investing.com/economic-calendar/core-ppi-735"
-                />
+                <ExternalLinkCard title="Fear & Greed Index" desc="CNN 市場情緒指數" href="https://edition.cnn.com/markets/fear-and-greed" />
+                <ExternalLinkCard title="FedWatch Tool" desc="聯準會利率機率" href="https://www.cmegroup.com/cn-t/markets/interest-rates/cme-fedwatch-tool.html" />
+                <ExternalLinkCard title="美國 GDP" desc="美國官方 GDP 數據" href="https://www.bea.gov/" />
+                <ExternalLinkCard title="美國 TGA" desc="Treasury General Account" href="https://fred.stlouisfed.org/series/D2WLTGAL" />
+                <ExternalLinkCard title="銀行準備金" desc="Fed Reserve Balances" href="https://fred.stlouisfed.org/release?rid=20" />
+                <ExternalLinkCard title="非農就業 NFP" desc="美國非農數據" href="https://hk.investing.com/economic-calendar/nonfarm-payrolls-227" />
+                <ExternalLinkCard title="美國失業率" desc="Unemployment Rate" href="https://hk.investing.com/economic-calendar/unemployment-rate-300" />
+                <ExternalLinkCard title="美國 CPI" desc="消費者物價指數" href="https://hk.investing.com/economic-calendar/cpi-733/" />
+                <ExternalLinkCard title="美國核心 CPI" desc="Core CPI" href="https://hk.investing.com/economic-calendar/core-cpi-736" />
+                <ExternalLinkCard title="美國核心 PCE" desc="Core PCE" href="https://hk.investing.com/economic-calendar/core-pce-price-index-905" />
+                <ExternalLinkCard title="美國核心 PPI" desc="Producer Price Index" href="https://hk.investing.com/economic-calendar/core-ppi-735" />
               </div>
             </CardContent>
           </Card>
         </div>
       </div>
-    </main>
-  );
-}
-
-function MacroCard({ item }: { item: MacroItem }) {
-  return (
-    <Card className="rounded-3xl border border-white/10 bg-black">
-      <CardContent className="p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="text-2xl">
-            {item.name}
-          </div>
-
-          <div className="rounded-full border border-[#C8A96B]/30 bg-[#C8A96B]/10 px-3 py-1 text-sm text-[#E6C77D]">
-            {item.impact}
-          </div>
-        </div>
-
-        <div className="text-5xl font-bold">
-          {item.actual}
-        </div>
-
-        <div className="mt-4 text-lg text-zinc-400">
-          Previous : {item.previous}
-        </div>
-
-        <div className="mt-3 text-lg text-zinc-500">
-          {item.time}
-        </div>
-
-        <div className="mt-3 text-sm text-zinc-600">
-          Source : {item.source}
-        </div>
-      </CardContent>
-    </Card>
-  );
+    </div>
+  )
 }
 
 function ExternalLinkCard({
@@ -373,23 +336,18 @@ function ExternalLinkCard({
   desc,
   href,
 }: {
-  title: string;
-  desc: string;
-  href: string;
+  title: string
+  desc: string
+  href: string
 }) {
   return (
     <a
       href={href}
       target="_blank"
-      className="rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:border-[#C8A96B]/40"
+      className="rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:border-[#C8A96B]/40 hover:bg-black/40"
     >
-      <div className="font-semibold text-[#E6C77D]">
-        {title}
-      </div>
-
-      <div className="mt-1 text-sm text-zinc-400">
-        {desc}
-      </div>
+      <div className="font-semibold text-[#E6C77D]">{title}</div>
+      <div className="mt-1 text-sm text-zinc-400">{desc}</div>
     </a>
-  );
+  )
 }
