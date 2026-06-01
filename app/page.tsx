@@ -18,12 +18,12 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
 const demoMarketCards = [
-  { label: 'SPY', value: '638.42', chg: '+0.42%', status: 'up', source: 'Demo' },
-  { label: 'QQQ', value: '571.20', chg: '+0.68%', status: 'up', source: 'Demo' },
-  { label: 'VIX', value: '14.8', chg: '-3.1%', status: 'down', source: 'Demo' },
-  { label: '10Y', value: '4.12%', chg: '-0.05', status: 'down', source: 'Demo' },
-  { label: 'DXY', value: '98.7', chg: '-0.18%', status: 'down', source: 'Demo' },
-  { label: 'WTI', value: '78.40', chg: '+0.9%', status: 'up', source: 'Demo' },
+  { label: 'SPY', value: '等待資料', chg: '—', status: 'up', source: '等待同步' },
+  { label: 'QQQ', value: '等待資料', chg: '—', status: 'up', source: '等待同步' },
+  { label: 'VIX', value: '等待資料', chg: '—', status: 'down', source: '等待同步' },
+  { label: '10Y', value: '等待資料', chg: '—', status: 'down', source: '等待同步' },
+  { label: 'DXY', value: '等待資料', chg: '—', status: 'down', source: '等待同步' },
+  { label: 'WTI', value: '等待資料', chg: '—', status: 'up', source: '等待同步' },
 ]
 
 type MacroItem = {
@@ -48,7 +48,13 @@ async function safeFetch(endpoint: string, fallback: any) {
   }
 }
 
-function Pill({ children, tone = 'gold' }: { children: React.ReactNode; tone?: string }) {
+function Pill({
+  children,
+  tone = 'gold',
+}: {
+  children: React.ReactNode
+  tone?: string
+}) {
   const cls =
     tone === 'green'
       ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
@@ -58,7 +64,11 @@ function Pill({ children, tone = 'gold' }: { children: React.ReactNode; tone?: s
       ? 'bg-sky-500/15 text-sky-300 border-sky-500/30'
       : 'bg-[#C8A96B]/15 text-[#E6C77D] border-[#C8A96B]/30'
 
-  return <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs ${cls}`}>{children}</span>
+  return (
+    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs ${cls}`}>
+      {children}
+    </span>
+  )
 }
 
 function formatNow() {
@@ -66,7 +76,11 @@ function formatNow() {
 }
 
 function isValidMarketData(data: any) {
-  return Array.isArray(data) && data.length > 0 && data.some((item) => item?.value && item?.source && item.source !== 'Demo')
+  return (
+    Array.isArray(data) &&
+    data.length > 0 &&
+    data.some((item) => item?.value && item?.source && item.source !== 'Demo')
+  )
 }
 
 function groupMacro(items: MacroItem[]) {
@@ -117,33 +131,25 @@ export default function DeepResearchDashboard() {
   const status = getStatus(score)
 
   async function refreshMarket() {
-  setLoading(true)
+    setLoading(true)
 
-  const market = await safeFetch('/api/market', null)
+    const market = await safeFetch('/api/market', null)
+    const marketOk = isValidMarketData(market)
 
-  const marketOk = isValidMarketData(market)
+    if (marketOk) {
+      setMarketCards(market)
+    }
 
-  if (marketOk) {
-    setMarketCards(market)
+    setConnected(marketOk || macroItems.length > 0)
+    setUpdatedAt(formatNow())
+    setLatestAlert({
+      title: marketOk ? '市場報價已更新' : '市場報價本次未取得新資料',
+      detail: '總經資料不會因市場刷新而重新抓取，會保留最近一次成功同步結果。',
+      updated: marketOk,
+    })
+
+    setLoading(false)
   }
-
-  setConnected(marketOk || macroItems.length > 0)
-
-  setUpdatedAt(formatNow())
-
-  setLatestAlert({
-    title: marketOk
-      ? '市場報價已更新'
-      : '市場報價本次未取得新資料',
-
-    detail:
-      '總經資料不會每分鐘刷新，會保留最近一次成功同步結果。',
-
-    updated: marketOk,
-  })
-
-  setLoading(false)
-}
 
   async function initData() {
     setLoading(true)
@@ -156,15 +162,22 @@ export default function DeepResearchDashboard() {
     const marketOk = isValidMarketData(market)
     const macroOk = Array.isArray(macro?.items) && macro.items.length > 0
 
-    if (marketOk) setMarketCards(market)
-    if (macroOk) setMacroItems(macro.items)
+    if (marketOk) {
+      setMarketCards(market)
+    }
+
+    if (macroOk) {
+      setMacroItems(macro.items)
+    }
 
     setConnected(marketOk || macroOk)
     setUpdatedAt(formatNow())
     setLatestAlert({
-      title: '總經資料已同步',
-      detail: '已載入 GDP、TGA、銀行準備金、利率、通膨、就業、VIX、DXY、油價等資料。',
-      updated: true,
+      title: macroOk ? '總經資料已同步' : '總經資料尚未取得',
+      detail: macroOk
+        ? '已載入流動性、利率、通膨、就業、市場風險與經濟成長資料。'
+        : '請檢查 /api/macro 是否有回傳 items 資料。',
+      updated: macroOk,
     })
 
     setLoading(false)
@@ -207,15 +220,23 @@ export default function DeepResearchDashboard() {
 
           <div className="flex flex-wrap items-center gap-2">
             <Pill tone={connected ? 'green' : 'red'}>
-              {connected ? <Wifi className="mr-1 h-3 w-3" /> : <WifiOff className="mr-1 h-3 w-3" />}
-              {connected ? '即時串接' : '等待更新'}
+              {connected ? (
+                <Wifi className="mr-1 h-3 w-3" />
+              ) : (
+                <WifiOff className="mr-1 h-3 w-3" />
+              )}
+              {connected ? '資料已串接' : '等待更新'}
             </Pill>
 
             <Pill tone={status.tone}>
               {status.tone === 'green' ? '🟢' : status.tone === 'red' ? '🔴' : '🟡'} {status.text}
             </Pill>
 
-            <Button onClick={refreshMarket} disabled={loading} className="rounded-2xl bg-[#C8A96B] text-black hover:bg-[#E6C77D]">
+            <Button
+              onClick={refreshMarket}
+              disabled={loading}
+              className="rounded-2xl bg-[#C8A96B] text-black hover:bg-[#E6C77D]"
+            >
               <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               {loading ? '更新中' : '刷新市場'}
             </Button>
@@ -230,6 +251,7 @@ export default function DeepResearchDashboard() {
                 <span className="font-semibold text-[#E6C77D]">最新數據提醒欄位</span>
                 {latestAlert.updated && <Pill tone="green">NEW</Pill>}
               </div>
+
               <div className="text-lg font-semibold">{latestAlert.title}</div>
               <p className="mt-2 text-sm leading-7 text-zinc-300">{latestAlert.detail}</p>
             </div>
@@ -239,6 +261,7 @@ export default function DeepResearchDashboard() {
                 <Database className="h-4 w-4" />
                 資料更新狀態
               </div>
+
               <div className="mt-2">最後更新：{updatedAt}</div>
               <div className="mt-1">市場報價：每 60 秒</div>
               <div className="mt-1">總經資料：重新開啟網頁時同步</div>
@@ -252,16 +275,26 @@ export default function DeepResearchDashboard() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between text-sm text-zinc-400">
                   <span>{m.label}</span>
+
                   {m.status === 'up' ? (
                     <ArrowUpRight className="h-4 w-4 text-emerald-300" />
                   ) : (
                     <ArrowDownRight className="h-4 w-4 text-red-300" />
                   )}
                 </div>
+
                 <div className="mt-3 text-2xl font-semibold">{m.value}</div>
-                <div className={m.status === 'up' ? 'text-sm text-emerald-300' : 'text-sm text-red-300'}>
+
+                <div
+                  className={
+                    m.status === 'up'
+                      ? 'text-sm text-emerald-300'
+                      : 'text-sm text-red-300'
+                  }
+                >
                   {m.chg}
                 </div>
+
                 <div className="mt-2 text-[10px] text-zinc-600">Source: {m.source || 'API'}</div>
               </CardContent>
             </Card>
@@ -276,44 +309,51 @@ export default function DeepResearchDashboard() {
                   <Database className="text-[#C8A96B]" />
                   總經與流動性數據
                 </div>
+
                 <Pill tone="blue">FRED API</Pill>
               </div>
 
-              <div className="space-y-6">
-                {groupOrder.map((group) => {
-                  const list = grouped[group] || []
-                  if (list.length === 0) return null
+              {macroItems.length === 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-[#0D0D0D] p-6 text-zinc-400">
+                  尚未取得總經資料，請確認 /api/macro 是否成功回傳 items。
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {groupOrder.map((group) => {
+                    const list = grouped[group] || []
 
-                  return (
-                    <div key={group}>
-                      <div className="mb-3 text-sm font-semibold text-[#E6C77D]">{group}</div>
+                    if (list.length === 0) return null
 
-                      <div className="grid gap-3 md:grid-cols-2">
-                        {list.map((item) => (
-                          <div key={item.id} className="rounded-2xl border border-white/10 bg-[#0D0D0D] p-4">
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium">{item.name}</span>
-                              <Pill>{item.impact}</Pill>
+                    return (
+                      <div key={group}>
+                        <div className="mb-3 text-sm font-semibold text-[#E6C77D]">{group}</div>
+
+                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                          {list.map((item) => (
+                            <div key={item.id} className="rounded-2xl border border-white/10 bg-[#0D0D0D] p-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-sm font-medium leading-5">{item.name}</span>
+                                <Pill>{item.impact}</Pill>
+                              </div>
+
+                              <div className="mt-3 text-2xl font-semibold text-white">
+                                {item.actual}
+                                {item.unit ? (
+                                  <span className="ml-1 text-sm text-zinc-500">{item.unit}</span>
+                                ) : null}
+                              </div>
+
+                              <div className="mt-2 text-xs text-zinc-500">Previous：{item.previous}</div>
+                              <div className="pt-2 text-xs text-zinc-500">{item.time}</div>
+                              <div className="pt-1 text-[10px] text-zinc-700">Source：{item.source}</div>
                             </div>
-
-                            <div className="mt-3 text-2xl font-semibold text-white">
-                              {item.actual}
-                              {item.unit ? (
-                                <span className="ml-1 text-sm text-zinc-500">
-                                  {item.unit}
-                                </span>
-                              ) : null}
-                            </div>
-
-                            <div className="mt-2 text-xs text-zinc-500">Previous：{item.previous}</div>
-                            <div className="pt-2 text-sm text-zinc-500">{item.time}</div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
+                    )
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -327,6 +367,7 @@ export default function DeepResearchDashboard() {
               <div className="flex items-center justify-center">
                 <div className="relative grid h-36 w-36 place-items-center rounded-full border border-[#C8A96B]/30 bg-black/30 shadow-[0_0_35px_rgba(200,169,107,0.14)]">
                   <div className="absolute inset-3 rounded-full border border-white/10" />
+
                   <div className="text-center">
                     <div className="text-4xl font-semibold text-[#E6C77D]">{score}</div>
                     <div className="text-xs text-zinc-400">/ 100</div>
