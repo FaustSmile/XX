@@ -26,18 +26,6 @@ const demoMarketCards = [
   { label: 'WTI', value: '等待資料', chg: '—', status: 'up', source: '等待同步' },
 ]
 
-const manualGDPNow = {
-  id: 'GDPNOW',
-  name: 'GDPNow 預測',
-  group: '經濟成長',
-  actual: '手動更新',
-  previous: '請至 Atlanta Fed GDPNow 查看最新值',
-  unit: '',
-  impact: '高',
-  time: '資料來源：Atlanta Fed GDPNow',
-  source: 'Manual',
-}
-
 type MacroItem = {
   id: string
   name: string
@@ -125,7 +113,7 @@ export default function DeepResearchDashboard() {
   const [loading, setLoading] = useState(false)
   const [connected, setConnected] = useState(false)
   const [marketCards, setMarketCards] = useState(demoMarketCards)
-  const [macroItems, setMacroItems] = useState<MacroItem[]>([manualGDPNow])
+  const [macroItems, setMacroItems] = useState<MacroItem[]>([])
   const [latestAlert, setLatestAlert] = useState({
     title: '等待初始化',
     detail: '系統正在同步市場與總經資料。',
@@ -173,9 +161,9 @@ export default function DeepResearchDashboard() {
     }
 
     if (macroOk) {
-      setMacroItems([manualGDPNow, ...macro.items])
+      setMacroItems(macro.items)
     } else {
-      setMacroItems([manualGDPNow])
+      setMacroItems([])
     }
 
     setConnected(marketOk || macroOk)
@@ -183,8 +171,8 @@ export default function DeepResearchDashboard() {
     setLatestAlert({
       title: macroOk ? '總經資料已同步' : '總經資料部分同步',
       detail: macroOk
-        ? '已載入 GDPNow 手動卡片、流動性、利率、通膨與就業資料。'
-        : 'GDPNow 手動卡片已載入，請確認 /api/macro 是否正常。',
+        ? '已載入流動性、利率、通膨與就業資料。'
+        : '請確認 /api/macro 是否正常。',
       updated: true,
     })
 
@@ -222,7 +210,7 @@ export default function DeepResearchDashboard() {
             </h1>
 
             <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-400">
-              追蹤 GDPNow、流動性、利率、通膨與就業，用來判斷美股風險偏好與 Buy Call 環境。
+              追蹤流動性、利率、通膨與就業，用來判斷美股風險偏好與 Buy Call 環境。
             </p>
           </div>
 
@@ -318,44 +306,50 @@ export default function DeepResearchDashboard() {
                   總經與流動性數據
                 </div>
 
-                <Pill tone="blue">FRED / 手動 GDPNow</Pill>
+                <Pill tone="blue">FRED</Pill>
               </div>
 
-              <div className="space-y-8">
-                {groupOrder.map((group) => {
-                  const list = grouped[group] || []
+              {macroItems.length === 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-[#0D0D0D] p-6 text-zinc-400">
+                  尚未取得總經資料，請確認 /api/macro 是否成功回傳資料。
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {groupOrder.map((group) => {
+                    const list = grouped[group] || []
 
-                  if (list.length === 0) return null
+                    if (list.length === 0) return null
 
-                  return (
-                    <div key={group}>
-                      <div className="mb-3 text-sm font-semibold text-[#E6C77D]">{group}</div>
+                    return (
+                      <div key={group}>
+                        <div className="mb-3 text-sm font-semibold text-[#E6C77D]">{group}</div>
 
-                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                        {list.map((item) => (
-                          <div key={item.id} className="rounded-2xl border border-white/10 bg-[#0D0D0D] p-4">
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-sm font-medium leading-5">{item.name}</span>
-                              <Pill>{item.impact}</Pill>
+                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                          {list.map((item) => (
+                            <div key={item.id} className="rounded-2xl border border-white/10 bg-[#0D0D0D] p-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-sm font-medium leading-5">{item.name}</span>
+                                <Pill>{item.impact}</Pill>
+                              </div>
+
+                              <div className="mt-3 text-2xl font-semibold text-white">
+                                {item.actual}
+                                {item.unit ? (
+                                  <span className="ml-1 text-sm text-zinc-500">{item.unit}</span>
+                                ) : null}
+                              </div>
+
+                              <div className="mt-2 text-xs text-zinc-500">Previous：{item.previous}</div>
+                              <div className="pt-2 text-xs text-zinc-500">{item.time}</div>
+                              <div className="pt-1 text-[10px] text-zinc-700">Source：{item.source}</div>
                             </div>
-
-                            <div className="mt-3 text-2xl font-semibold text-white">
-                              {item.actual}
-                              {item.unit ? (
-                                <span className="ml-1 text-sm text-zinc-500">{item.unit}</span>
-                              ) : null}
-                            </div>
-
-                            <div className="mt-2 text-xs text-zinc-500">Previous：{item.previous}</div>
-                            <div className="pt-2 text-xs text-zinc-500">{item.time}</div>
-                            <div className="pt-1 text-[10px] text-zinc-700">Source：{item.source}</div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
+                    )
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
 
