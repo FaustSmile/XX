@@ -3,6 +3,16 @@ import { NextResponse } from "next/server";
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 const FRED_API_KEY = process.env.FRED_API_KEY;
 
+function formatNumber(value: number) {
+  if (!Number.isFinite(value)) return "—";
+  return value.toFixed(2);
+}
+
+function formatChange(value: number) {
+  if (!Number.isFinite(value)) return "—";
+  return (value >= 0 ? "+" : "") + value.toFixed(2) + "%";
+}
+
 async function getFinnhubQuote(symbol: string, label = symbol) {
   const url =
     "https://finnhub.io/api/v1/quote?symbol=" +
@@ -13,21 +23,33 @@ async function getFinnhubQuote(symbol: string, label = symbol) {
   const res = await fetch(url, { cache: "no-store" });
   const data = await res.json();
 
-  const current = Number(data.c || 0);
-  const previous = Number(data.pc || 0);
+  const current = Number(data.c);
+  const previousClose = Number(data.pc);
+
+  const displayValue =
+    Number.isFinite(current) && current > 0
+      ? current
+      : Number.isFinite(previousClose) && previousClose > 0
+      ? previousClose
+      : NaN;
 
   const changePercent =
-    previous > 0 ? ((current - previous) / previous) * 100 : 0;
+    Number.isFinite(current) &&
+    current > 0 &&
+    Number.isFinite(previousClose) &&
+    previousClose > 0
+      ? ((current - previousClose) / previousClose) * 100
+      : 0;
 
   return {
     label,
-    value: current ? current.toFixed(2) : "—",
-    chg:
-      previous > 0
-        ? (changePercent >= 0 ? "+" : "") + changePercent.toFixed(2) + "%"
-        : "—",
+    value: formatNumber(displayValue),
+    chg: Number.isFinite(changePercent) ? formatChange(changePercent) : "—",
     status: changePercent >= 0 ? "up" : "down",
-    source: "Finnhub",
+    source:
+      Number.isFinite(current) && current > 0
+        ? "Finnhub 最新價"
+        : "Finnhub 前收盤",
   };
 }
 
@@ -37,9 +59,13 @@ async function getFredLatest(seriesId: string, label: string) {
     encodeURIComponent(seriesId) +
     "&api_key=" +
     FRED_API_KEY +
-    "&file_type=json&sort_order=desc&limit=30";
+    "&file_type=json&sort_order=desc&limit=60";
 
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, {
+    cache: "force-cache",
+    next: { revalidate: 3600 },
+  });
+
   const data = await res.json();
 
   const observations = (data.observations || []).filter((x: any) => {
@@ -51,16 +77,18 @@ async function getFredLatest(seriesId: string, label: string) {
   const previous = Number(observations[1]?.value);
 
   const changePercent =
-    previous > 0 ? ((latest - previous) / previous) * 100 : 0;
+    Number.isFinite(latest) &&
+    Number.isFinite(previous) &&
+    previous !== 0
+      ? ((latest - previous) / previous) * 100
+      : 0;
 
   return {
     label,
-    value: Number.isFinite(latest) ? latest.toFixed(2) : "—",
-    chg: Number.isFinite(changePercent)
-      ? (changePercent >= 0 ? "+" : "") + changePercent.toFixed(2) + "%"
-      : "—",
+    value: formatNumber(latest),
+    chg: formatChange(changePercent),
     status: changePercent >= 0 ? "up" : "down",
-    source: "FRED",
+    source: "FRED 最近有效數據",
   };
 }
 
@@ -69,6 +97,7 @@ export async function GET() {
     const results = await Promise.all([
       getFinnhubQuote("SPY", "SPY"),
       getFinnhubQuote("QQQ", "QQQ"),
+
       getFredLatest("VIXCLS", "VIX"),
       getFredLatest("DGS10", "10Y"),
       getFredLatest("DTWEXBGS", "DXY"),
