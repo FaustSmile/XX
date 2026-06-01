@@ -1,5 +1,6 @@
 'use client'
 
+import GaugeComponent from 'react-gauge-component'
 import React, { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
