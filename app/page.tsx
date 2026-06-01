@@ -128,6 +128,10 @@ export default function DeepResearchDashboard() {
     title: '等待初始化',
     detail: '系統正在等待首次同步市場與總經資料。',
     updated: false,
+    const [fearGreed, setFearGreed] = useState({
+  value: 50,
+  status: 'Neutral',
+})
   })
 
   const buyCallScore = useMemo(() => {
@@ -151,6 +155,11 @@ export default function DeepResearchDashboard() {
 
     if (marketOk) {
       setMarketCards(market)
+    const fg = await safeFetch('/api/feargreed', null)
+
+if (fg?.value) {
+  setFearGreed(fg)
+}  
     }
 
     let macroOk = false
@@ -318,31 +327,43 @@ export default function DeepResearchDashboard() {
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
+           <Card className="rounded-3xl border-[#C8A96B]/20 bg-[#161616]">
+  <CardContent className="p-6">
+    <div className="mb-4 flex items-center gap-2 text-lg font-semibold">
+      <Gauge className="text-[#C8A96B]" />
+      Fear & Greed Index
+    </div>
 
-          <Card className="rounded-3xl border-[#C8A96B]/20 bg-[#161616]">
-            <CardContent className="p-6">
-              <div className="mb-4 flex items-center gap-2 text-lg font-semibold">
-                <Gauge className="text-[#C8A96B]" />
-                Buy Call 環境評分
-              </div>
+    <div className="mt-4">
+      <GaugeComponent
+        type="semicircle"
+        value={fearGreed.value}
+        minValue={0}
+        maxValue={100}
+        arc={{
+          subArcs: [
+            { limit: 25, color: '#ef4444', showTick: true },
+            { limit: 50, color: '#f59e0b', showTick: true },
+            { limit: 75, color: '#10b981', showTick: true },
+            { limit: 100, color: '#22c55e', showTick: true },
+          ],
+        }}
+        labels={{
+          valueLabel: {
+            style: {
+              fill: '#E6C77D',
+              fontSize: '40px',
+            },
+          },
+        }}
+      />
+    </div>
 
-              <ScoreRing score={buyCallScore} />
-
-              <div
-                className={`mt-5 rounded-2xl p-4 text-sm leading-6 ${
-                  statusTone === 'green'
-                    ? 'bg-emerald-500/10 text-emerald-200'
-                    : statusTone === 'red'
-                    ? 'bg-red-500/10 text-red-200'
-                    : 'bg-[#C8A96B]/10 text-[#E6C77D]'
-                }`}
-              >
-                目前狀態：{marketStatus}
-              </div>
-            </CardContent>
-          </Card>
+    <div className="mt-5 rounded-2xl bg-[#C8A96B]/10 p-4 text-sm leading-6 text-[#E6C77D]">
+      目前市場情緒：{fearGreed.status}
+    </div>
+  </CardContent>
+</Card>
         </div>
       </div>
     </div>
