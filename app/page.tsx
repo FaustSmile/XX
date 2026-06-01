@@ -279,7 +279,7 @@ export default function DeepResearchDashboard() {
                             <div key={item.id} className="rounded-2xl border border-white/10 bg-[#0D0D0D] p-4">
                               <div className="flex items-center justify-between gap-3">
                                 <span className="text-sm font-medium leading-5">{item.name}</span>
-                                <Pill>{item.impact}</Pill>
+          
                               </div>
 
                               <div className="mt-3 text-2xl font-semibold text-white">
