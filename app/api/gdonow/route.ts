@@ -2,9 +2,8 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-function extractMatch(html: string, pattern: RegExp) {
-  const match = html.match(pattern);
-  return match ? match[1].trim() : "";
+function clean(text: string) {
+  return text.replace(/\s+/g, " ").trim();
 }
 
 export async function GET() {
@@ -21,37 +20,51 @@ export async function GET() {
 
     const html = await res.text();
 
-    const value = extractMatch(html, /(\d+(?:\.\d+)?)%\s*Latest GDPNow Estimate/i);
+    const valueMatch = html.match(/Latest GDPNow Estimate.*?(-?\d+\.\d+)%/is);
 
-    const quarter = extractMatch(
-      html,
-      /Latest GDPNow Estimate for\s*([0-9]{4}:Q[1-4])/i
+    const quarterMatch = html.match(
+      /Latest GDPNow Estimate for ([0-9]{4}:[Qq][1-4])/is
     );
 
-    const updated = extractMatch(
-      html,
-      /Updated:\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})/i
+    const updatedMatch = html.match(
+      /Updated:\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})/is
     );
 
-    const nextUpdate = extractMatch(
-      html,
-      /Next update:\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})/i
+    const nextMatch = html.match(
+      /Next update:\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})/is
     );
+
+    const actual = valueMatch?.[1]
+      ? valueMatch[1] + "%"
+      : "—";
+
+    const quarter = quarterMatch?.[1]
+      ? clean(quarterMatch[1])
+      : "—";
+
+    const updated = updatedMatch?.[1]
+      ? clean(updatedMatch[1])
+      : "";
+
+    const nextUpdate = nextMatch?.[1]
+      ? clean(nextMatch[1])
+      : "";
 
     return NextResponse.json({
       id: "GDPNOW",
       name: "GDPNow 預測",
       group: "經濟成長",
-      actual: value ? value + "%" : "—",
-      previous: quarter ? "預測季度：" + quarter : "—",
+      actual,
+      previous: "預測季度：" + quarter,
       unit: "",
       impact: "高",
-      time: updated
-        ? "更新：" + updated + (nextUpdate ? "｜下次：" + nextUpdate : "")
-        : "Atlanta Fed GDPNow",
+      time:
+        updated || nextUpdate
+          ? `更新：${updated}｜下次：${nextUpdate}`
+          : "Atlanta Fed GDPNow",
       source: "Atlanta Fed",
     });
-  } catch {
+  } catch (e) {
     return NextResponse.json({
       id: "GDPNOW",
       name: "GDPNow 預測",
