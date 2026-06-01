@@ -288,7 +288,11 @@ export default function DeepResearchDashboard() {
 
                             <div className="mt-3 text-2xl font-semibold text-white">
                               {item.actual}
-                              {item.unit && item.format !== 'percent' ? <span className="ml-1 text-sm text-zinc-500">{item.unit}</span> : null}
+                              {item.unit ? (
+                                <span className="ml-1 text-sm text-zinc-500">
+                                  {item.unit}
+                                </span>
+                              ) : null}
                             </div>
 
                             <div className="mt-2 text-xs text-zinc-500">Previous：{item.previous}</div>
