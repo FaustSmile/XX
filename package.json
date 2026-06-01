@@ -18,7 +18,8 @@
     "react": "latest",
     "react-dom": "latest",
     "tailwind-merge": "latest",
-    "tailwindcss-animate": "latest"
+    "tailwindcss-animate": "latest",
+    "react-gauge-component": "latest"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "latest",
