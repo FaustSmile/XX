@@ -1,8 +1,8 @@
 'use client'
 
-import GaugeComponent from 'react-gauge-component'
 import React, { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
+import GaugeComponent from 'react-gauge-component'
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -68,23 +68,6 @@ function Pill({
   )
 }
 
-function ScoreRing({ score }: { score: number }) {
-  const color =
-    score >= 80 ? 'text-emerald-300' : score >= 60 ? 'text-[#E6C77D]' : 'text-red-300'
-
-  return (
-    <div className="flex items-center justify-center">
-      <div className="relative grid h-36 w-36 place-items-center rounded-full border border-[#C8A96B]/30 bg-black/30 shadow-[0_0_35px_rgba(200,169,107,0.14)]">
-        <div className="absolute inset-3 rounded-full border border-white/10" />
-        <div className="text-center">
-          <div className={`text-4xl font-semibold ${color}`}>{score}</div>
-          <div className="text-xs text-zinc-400">/ 100</div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function getStatusTone(score: number) {
   if (score >= 80) return 'green'
   if (score >= 60) return 'gold'
@@ -97,7 +80,6 @@ function formatNow() {
 
 function isInvalidValue(value: any) {
   const text = String(value || '').trim()
-
   return text === '' || text === '—' || text === '-' || text === '等待資料'
 }
 
@@ -111,9 +93,7 @@ function isValidMarketData(data: any) {
 
 function isValidMacroData(data: any) {
   if (!Array.isArray(data) || data.length === 0) return false
-
   const validCount = data.filter((item) => !isInvalidValue(item?.actual)).length
-
   return validCount >= 2
 }
 
@@ -123,24 +103,25 @@ export default function DeepResearchDashboard() {
   const [connected, setConnected] = useState(false)
   const [marketCards, setMarketCards] = useState(demoMarketCards)
   const [macroEvents, setMacroEvents] = useState(demoMacroEvents)
+  const [fearGreed, setFearGreed] = useState({
+    value: 50,
+    status: 'Neutral',
+  })
 
   const [latestAlert, setLatestAlert] = useState({
     title: '等待初始化',
     detail: '系統正在等待首次同步市場與總經資料。',
     updated: false,
-    const [fearGreed, setFearGreed] = useState({
-  value: 50,
-  status: 'Neutral',
-})
   })
 
   const buyCallScore = useMemo(() => {
     const qqqStrong = marketCards.find((m) => m.label === 'QQQ')?.status === 'up' ? 18 : 10
     const spyStrong = marketCards.find((m) => m.label === 'SPY')?.status === 'up' ? 15 : 8
     const vixOk = marketCards.find((m) => m.label === 'VIX')?.status === 'down' ? 18 : 8
+    const fgScore = fearGreed.value >= 40 && fearGreed.value <= 75 ? 20 : 10
 
-    return Math.max(0, Math.min(100, Math.round(qqqStrong + spyStrong + vixOk + 35)))
-  }, [marketCards])
+    return Math.max(0, Math.min(100, Math.round(qqqStrong + spyStrong + vixOk + fgScore + 15)))
+  }, [marketCards, fearGreed])
 
   const marketStatus =
     buyCallScore >= 80 ? 'Risk On' : buyCallScore >= 60 ? 'Neutral' : 'Risk Off'
@@ -150,16 +131,19 @@ export default function DeepResearchDashboard() {
   async function refreshData(fetchMacro = false) {
     setLoading(true)
 
-    const market = await safeFetch('/api/market', null)
+    const [market, fg] = await Promise.all([
+      safeFetch('/api/market', null),
+      safeFetch('/api/feargreed', null),
+    ])
+
     const marketOk = isValidMarketData(market)
 
     if (marketOk) {
       setMarketCards(market)
-    const fg = await safeFetch('/api/feargreed', null)
+    }
 
-if (fg?.value) {
-  setFearGreed(fg)
-}  
+    if (fg?.value) {
+      setFearGreed(fg)
     }
 
     let macroOk = false
@@ -173,14 +157,14 @@ if (fg?.value) {
       }
     }
 
-    setConnected(marketOk || macroOk)
+    setConnected(marketOk || macroOk || Boolean(fg?.value))
     setUpdatedAt(formatNow())
 
     setLatestAlert({
       title: fetchMacro ? '市場與高影響經濟數據已初始化' : '市場報價已更新',
       detail: fetchMacro
         ? '高影響經濟數據只會在首次開啟網頁時同步。'
-        : '目前僅刷新市場報價，高影響經濟數據維持首次同步資料。',
+        : '目前僅刷新市場報價與恐懼貪婪指數，高影響經濟數據維持首次同步資料。',
       updated: true,
     })
 
@@ -216,7 +200,7 @@ if (fg?.value) {
             </h1>
 
             <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-400">
-              整合總經、流動性與市場情緒，用來判斷今天是否適合進攻 Buy Call。
+              整合總經、流動性、市場情緒，用來判斷今天是否適合進攻 Buy Call。
             </p>
           </div>
 
@@ -251,7 +235,6 @@ if (fg?.value) {
               </div>
 
               <div className="text-lg font-semibold">{latestAlert.title}</div>
-
               <p className="mt-2 text-sm leading-7 text-zinc-300">{latestAlert.detail}</p>
             </div>
 
@@ -273,7 +256,6 @@ if (fg?.value) {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between text-sm text-zinc-400">
                   <span>{m.label}</span>
-
                   {m.status === 'up' ? (
                     <ArrowUpRight className="h-4 w-4 text-emerald-300" />
                   ) : (
@@ -317,53 +299,53 @@ if (fg?.value) {
 
                     <div className="mt-3 space-y-1">
                       <div className="text-2xl font-semibold text-white">{e.actual}</div>
-
                       <div className="text-xs text-zinc-500">Forecast：{e.forecast}</div>
-
                       <div className="text-xs text-zinc-500">Previous：{e.previous}</div>
-
                       <div className="pt-2 text-sm text-zinc-500">{e.time}</div>
                     </div>
                   </div>
                 ))}
               </div>
-           <Card className="rounded-3xl border-[#C8A96B]/20 bg-[#161616]">
-  <CardContent className="p-6">
-    <div className="mb-4 flex items-center gap-2 text-lg font-semibold">
-      <Gauge className="text-[#C8A96B]" />
-      Fear & Greed Index
-    </div>
+            </CardContent>
+          </Card>
 
-    <div className="mt-4">
-      <GaugeComponent
-        type="semicircle"
-        value={fearGreed.value}
-        minValue={0}
-        maxValue={100}
-        arc={{
-          subArcs: [
-            { limit: 25, color: '#ef4444', showTick: true },
-            { limit: 50, color: '#f59e0b', showTick: true },
-            { limit: 75, color: '#10b981', showTick: true },
-            { limit: 100, color: '#22c55e', showTick: true },
-          ],
-        }}
-        labels={{
-          valueLabel: {
-            style: {
-              fill: '#E6C77D',
-              fontSize: '40px',
-            },
-          },
-        }}
-      />
-    </div>
+          <Card className="rounded-3xl border-[#C8A96B]/20 bg-[#161616]">
+            <CardContent className="p-6">
+              <div className="mb-4 flex items-center gap-2 text-lg font-semibold">
+                <Gauge className="text-[#C8A96B]" />
+                Fear & Greed Index
+              </div>
 
-    <div className="mt-5 rounded-2xl bg-[#C8A96B]/10 p-4 text-sm leading-6 text-[#E6C77D]">
-      目前市場情緒：{fearGreed.status}
-    </div>
-  </CardContent>
-</Card>
+              <div className="mt-4">
+                <GaugeComponent
+                  type="semicircle"
+                  value={fearGreed.value}
+                  minValue={0}
+                  maxValue={100}
+                  arc={{
+                    subArcs: [
+                      { limit: 25, color: '#ef4444', showTick: true },
+                      { limit: 50, color: '#f59e0b', showTick: true },
+                      { limit: 75, color: '#10b981', showTick: true },
+                      { limit: 100, color: '#22c55e', showTick: true },
+                    ],
+                  }}
+                  labels={{
+                    valueLabel: {
+                      style: {
+                        fill: '#E6C77D',
+                        fontSize: '40px',
+                      },
+                    },
+                  }}
+                />
+              </div>
+
+              <div className="mt-5 rounded-2xl bg-[#C8A96B]/10 p-4 text-sm leading-6 text-[#E6C77D]">
+                目前市場情緒：{fearGreed.status}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
