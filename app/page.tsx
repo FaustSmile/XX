@@ -267,33 +267,161 @@ export default function DeepResearchDashboard() {
 
         <div className="grid gap-4 md:grid-cols-6">
           {marketCards.map((m) => (
-            <Card key={m.label} className="rounded-3xl border-white/10 bg-[#161616] shadow-xl">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between text-sm text-zinc-400">
-                  <span>{m.label}</span>
+            <Card className="rounded-3xl border-[#C8A96B]/20 bg-[#161616]">
+  <CardContent className="p-6">
+    <div className="mb-4 flex items-center gap-2 text-lg font-semibold">
+      <Database className="text-[#C8A96B]" />
+      外部總經資訊
+    </div>
 
-                  {m.status === 'up' ? (
-                    <ArrowUpRight className="h-4 w-4 text-emerald-300" />
-                  ) : (
-                    <ArrowDownRight className="h-4 w-4 text-red-300" />
-                  )}
-                </div>
+    <div className="space-y-3 text-sm">
 
-                <div className="mt-3 text-2xl font-semibold">{m.value}</div>
+      <a
+        href="https://edition.cnn.com/markets/fear-and-greed"
+        target="_blank"
+        className="block rounded-xl border border-white/10 bg-black/20 p-3 transition hover:border-[#C8A96B]/40 hover:bg-black/40"
+      >
+        <div className="font-semibold text-[#E6C77D]">
+          恐懼貪婪指數 Fear & Greed
+        </div>
+        <div className="mt-1 text-zinc-400">
+          CNN 市場情緒指數
+        </div>
+      </a>
 
-                <div
-                  className={
-                    m.status === 'up'
-                      ? 'text-sm text-emerald-300'
-                      : 'text-sm text-red-300'
-                  }
-                >
-                  {m.chg}
-                </div>
+      <a
+        href="https://www.bea.gov/"
+        target="_blank"
+        className="block rounded-xl border border-white/10 bg-black/20 p-3 transition hover:border-[#C8A96B]/40 hover:bg-black/40"
+      >
+        <div className="font-semibold text-[#E6C77D]">
+          美國 GDP（BEA）
+        </div>
+        <div className="mt-1 text-zinc-400">
+          美國官方 GDP 經濟數據
+        </div>
+      </a>
 
-                <div className="mt-2 text-[10px] text-zinc-600">Source: {m.source || 'API'}</div>
-              </CardContent>
-            </Card>
+      <a
+        href="https://fred.stlouisfed.org/series/D2WLTGAL"
+        target="_blank"
+        className="block rounded-xl border border-white/10 bg-black/20 p-3 transition hover:border-[#C8A96B]/40 hover:bg-black/40"
+      >
+        <div className="font-semibold text-[#E6C77D]">
+          美國 TGA 帳戶
+        </div>
+        <div className="mt-1 text-zinc-400">
+          Treasury General Account
+        </div>
+      </a>
+
+      <a
+        href="https://fred.stlouisfed.org/release?rid=20"
+        target="_blank"
+        className="block rounded-xl border border-white/10 bg-black/20 p-3 transition hover:border-[#C8A96B]/40 hover:bg-black/40"
+      >
+        <div className="font-semibold text-[#E6C77D]">
+          美國銀行準備金
+        </div>
+        <div className="mt-1 text-zinc-400">
+          Fed Reserve Balances
+        </div>
+      </a>
+
+      <a
+        href="https://www.cmegroup.com/cn-t/markets/interest-rates/cme-fedwatch-tool.html"
+        target="_blank"
+        className="block rounded-xl border border-white/10 bg-black/20 p-3 transition hover:border-[#C8A96B]/40 hover:bg-black/40"
+      >
+        <div className="font-semibold text-[#E6C77D]">
+          FedWatch 利率預期
+        </div>
+        <div className="mt-1 text-zinc-400">
+          聯準會降息 / 升息機率
+        </div>
+      </a>
+
+      <a
+        href="https://hk.investing.com/economic-calendar/nonfarm-payrolls-227"
+        target="_blank"
+        className="block rounded-xl border border-white/10 bg-black/20 p-3 transition hover:border-[#C8A96B]/40 hover:bg-black/40"
+      >
+        <div className="font-semibold text-[#E6C77D]">
+          非農就業 NFP
+        </div>
+        <div className="mt-1 text-zinc-400">
+          美國非農就業數據
+        </div>
+      </a>
+
+      <a
+        href="https://hk.investing.com/economic-calendar/unemployment-rate-300"
+        target="_blank"
+        className="block rounded-xl border border-white/10 bg-black/20 p-3 transition hover:border-[#C8A96B]/40 hover:bg-black/40"
+      >
+        <div className="font-semibold text-[#E6C77D]">
+          美國失業率
+        </div>
+        <div className="mt-1 text-zinc-400">
+          Unemployment Rate
+        </div>
+      </a>
+
+      <a
+        href="https://hk.investing.com/economic-calendar/cpi-733/"
+        target="_blank"
+        className="block rounded-xl border border-white/10 bg-black/20 p-3 transition hover:border-[#C8A96B]/40 hover:bg-black/40"
+      >
+        <div className="font-semibold text-[#E6C77D]">
+          美國 CPI
+        </div>
+        <div className="mt-1 text-zinc-400">
+          消費者物價指數
+        </div>
+      </a>
+
+      <a
+        href="https://hk.investing.com/economic-calendar/core-cpi-736"
+        target="_blank"
+        className="block rounded-xl border border-white/10 bg-black/20 p-3 transition hover:border-[#C8A96B]/40 hover:bg-black/40"
+      >
+        <div className="font-semibold text-[#E6C77D]">
+          美國核心 CPI
+        </div>
+        <div className="mt-1 text-zinc-400">
+          Core CPI
+        </div>
+      </a>
+
+      <a
+        href="https://hk.investing.com/economic-calendar/core-pce-price-index-905"
+        target="_blank"
+        className="block rounded-xl border border-white/10 bg-black/20 p-3 transition hover:border-[#C8A96B]/40 hover:bg-black/40"
+      >
+        <div className="font-semibold text-[#E6C77D]">
+          美國核心 PCE
+        </div>
+        <div className="mt-1 text-zinc-400">
+          Core PCE Price Index
+        </div>
+      </a>
+
+      <a
+        href="https://hk.investing.com/economic-calendar/core-ppi-735"
+        target="_blank"
+        className="block rounded-xl border border-white/10 bg-black/20 p-3 transition hover:border-[#C8A96B]/40 hover:bg-black/40"
+      >
+        <div className="font-semibold text-[#E6C77D]">
+          美國核心 PPI
+        </div>
+        <div className="mt-1 text-zinc-400">
+          Producer Price Index
+        </div>
+      </a>
+
+    </div>
+  </CardContent>
+</Card>
           ))}
         </div>
 
