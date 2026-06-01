@@ -12,13 +12,13 @@ type FredObservation = {
 const SERIES = [
   // 經濟成長
   {
-    id: "GDP",
-    name: "GDP",
-    group: "經濟成長",
-    unit: "B",
-    format: "number",
-    impact: "高",
-  },
+  id: "A191RL1Q225SBEA",
+  name: "GDP 成長率",
+  group: "經濟成長",
+  unit: "%",
+  format: "percent",
+  impact: "高",
+},
 
   // 流動性
   {
