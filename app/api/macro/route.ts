@@ -10,7 +10,6 @@ type FredObservation = {
 };
 
 const SERIES = [
-  // 經濟成長
   {
     id: "A191RL1Q225SBEA",
     name: "GDP 成長率",
@@ -19,8 +18,6 @@ const SERIES = [
     format: "percent",
     impact: "高",
   },
-
-  // 流動性
   {
     id: "WRESBAL",
     name: "銀行準備金",
@@ -29,7 +26,6 @@ const SERIES = [
     format: "number",
     impact: "高",
   },
-
   {
     id: "M2SL",
     name: "M2 貨幣供給",
@@ -38,8 +34,6 @@ const SERIES = [
     format: "number",
     impact: "中",
   },
-
-  // 利率
   {
     id: "FEDFUNDS",
     name: "Fed Funds 利率",
@@ -48,7 +42,6 @@ const SERIES = [
     format: "percent",
     impact: "極高",
   },
-
   {
     id: "DGS2",
     name: "2Y 美債殖利率",
@@ -57,8 +50,6 @@ const SERIES = [
     format: "percent",
     impact: "高",
   },
-
-  // 通膨
   {
     id: "CPIAUCSL",
     name: "CPI",
@@ -67,7 +58,6 @@ const SERIES = [
     format: "yoy12",
     impact: "極高",
   },
-
   {
     id: "CPILFESL",
     name: "Core CPI",
@@ -76,7 +66,6 @@ const SERIES = [
     format: "yoy12",
     impact: "極高",
   },
-
   {
     id: "PCEPI",
     name: "PCE",
@@ -85,7 +74,6 @@ const SERIES = [
     format: "yoy12",
     impact: "高",
   },
-
   {
     id: "PCEPILFE",
     name: "Core PCE",
@@ -94,7 +82,6 @@ const SERIES = [
     format: "yoy12",
     impact: "極高",
   },
-
   {
     id: "PPIACO",
     name: "PPI",
@@ -103,8 +90,14 @@ const SERIES = [
     format: "yoy12",
     impact: "中",
   },
-
-  // 就業
+  {
+    id: "WPSFD4131",
+    name: "Core PPI",
+    group: "通膨",
+    unit: "",
+    format: "yoy12",
+    impact: "高",
+  },
   {
     id: "PAYEMS",
     name: "非農就業 NFP",
@@ -113,7 +106,6 @@ const SERIES = [
     format: "change",
     impact: "極高",
   },
-
   {
     id: "UNRATE",
     name: "失業率",
@@ -163,15 +155,11 @@ async function getFredSeries(seriesId: string): Promise<FredObservation[]> {
 
 function fmtNumber(n: number) {
   if (!Number.isFinite(n)) return "—";
-
-  return n.toLocaleString("en-US", {
-    maximumFractionDigits: 2,
-  });
+  return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
 function fmtPercent(n: number) {
   if (!Number.isFinite(n)) return "—";
-
   return n.toFixed(2) + "%";
 }
 
@@ -199,7 +187,6 @@ function buildValue(series: FredObservation[], format: string) {
         Number.isFinite(latest) && Number.isFinite(yearAgo12)
           ? fmtPercent(pctYoY(latest, yearAgo12))
           : "—",
-
       previous:
         Number.isFinite(prev) && Number.isFinite(prevYearAgo12)
           ? fmtPercent(pctYoY(prev, prevYearAgo12))
@@ -211,10 +198,7 @@ function buildValue(series: FredObservation[], format: string) {
     const change = latest - prev;
 
     return {
-      actual: Number.isFinite(change)
-        ? fmtNumber(change) + "K"
-        : "—",
-
+      actual: Number.isFinite(change) ? fmtNumber(change) + "K" : "—",
       previous: Number.isFinite(prev)
         ? "上月總量：" + fmtNumber(prev) + "K"
         : "—",
@@ -229,7 +213,6 @@ function buildValue(series: FredObservation[], format: string) {
 
 async function buildItem(s: any) {
   const data = await getFredSeries(s.id);
-
   const value = buildValue(data, s.format);
 
   return {
@@ -258,9 +241,7 @@ export async function GET() {
 
     for (const s of SERIES) {
       const item = await buildItem(s);
-
       items.push(item);
-
       await sleep(150);
     }
 
